@@ -2,602 +2,482 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maintenance Admin Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Maintenance Online Dashboard</title>
+    
+    <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <style>
-        body { font-family: 'Sarabun', sans-serif; background-color: #f1f5f9; }
-        .card { transition: transform 0.2s; }
-        .card:hover { transform: translateY(-2px); }
-        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .modal { opacity: 0; visibility: hidden; transition: all 0.3s ease; }
-        .modal.active { opacity: 1; visibility: visible; }
-        .modal-content { transform: scale(0.9); transition: all 0.3s ease; }
-        .modal.active .modal-content { transform: scale(1); }
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+        
+        body { 
+            font-family: 'Sarabun', sans-serif; 
+            background-color: #f1f5f9; 
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* Mobile Card Style */
+        .mobile-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .mobile-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 8px;
+            margin-bottom: 4px;
+        }
+
+        .mobile-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 600; }
+        .mobile-value { font-size: 14px; font-weight: 500; color: #334155; }
+
+        /* Animation */
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Hide Scrollbar */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body class="text-slate-800 pb-12">
+<body class="text-slate-800 pb-20">
 
     <!-- HEADER -->
-    <nav class="bg-slate-900 text-white p-4 shadow-xl sticky top-0 z-50">
-        <div class="container mx-auto flex flex-col xl:flex-row justify-between items-center gap-4">
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-50 px-4 py-3 shadow-sm safe-area-inset-top">
+        <div class="container mx-auto flex justify-between items-center">
             <div class="flex items-center gap-3">
-                <div class="bg-indigo-600 p-2.5 rounded-lg shadow-lg"><i class="fas fa-tools text-xl"></i></div>
+                <div class="bg-green-600 text-white p-2 rounded-lg shadow-md shadow-green-100">
+                    <i class="fab fa-google-drive text-lg"></i>
+                </div>
                 <div>
-                    <h1 class="text-xl font-bold tracking-wide">Maintenance Admin</h1>
-                    <p class="text-xs text-slate-400">ระบบบันทึกและวิเคราะห์ข้อมูล</p>
+                    <h1 class="text-lg font-bold tracking-tight text-slate-800 leading-tight">Maintenance</h1>
+                    <p class="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Online (Google Sheet)
+                    </p>
                 </div>
             </div>
             
             <div class="flex items-center gap-2">
-                <div id="year-selector-container" class="bg-slate-800 p-1 rounded-lg flex shadow-inner hidden overflow-x-auto max-w-[300px]"></div>
-                
-                <button onclick="openAddModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-900">
-                    <i class="fas fa-plus"></i> บันทึกงานใหม่
-                </button>
-
-                <button onclick="openConfig()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-sm transition-all" title="ตั้งค่าการเชื่อมต่อ">
-                    <i class="fas fa-cog"></i>
+                <div class="bg-slate-100 p-1 rounded-lg flex items-center border border-slate-200">
+                    <button onclick="switchView('desktop')" id="btn-desktop" class="p-1.5 rounded-md text-slate-400 hover:text-blue-600 transition-colors">
+                        <i class="fas fa-table"></i>
+                    </button>
+                    <button onclick="switchView('mobile')" id="btn-mobile" class="p-1.5 rounded-md text-slate-400 hover:text-blue-600 transition-colors">
+                        <i class="fas fa-th-list"></i>
+                    </button>
+                </div>
+                <button onclick="loadDataFromUrl()" class="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 transition-colors" title="รีโหลดข้อมูล">
+                    <i class="fas fa-sync-alt"></i>
                 </button>
             </div>
+        </div>
+
+        <!-- Year Selector -->
+        <div class="container mx-auto mt-3 overflow-x-auto no-scrollbar pb-1">
+            <div id="year-selector-container" class="flex gap-2 min-w-max px-1"></div>
         </div>
     </nav>
 
-    <!-- LOADING SPINNER (Full Screen) -->
-    <div id="loading-overlay" class="fixed inset-0 bg-slate-900 bg-opacity-50 z-[60] flex items-center justify-center backdrop-blur-sm hidden">
-        <div class="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center">
-            <div class="loader mb-3 w-10 h-10 border-4 border-t-blue-600"></div>
-            <p class="text-slate-700 font-bold">กำลังโหลดข้อมูล...</p>
-            <p class="text-xs text-slate-500">กรุณารอสักครู่</p>
-        </div>
+    <!-- LOADING OVERLAY -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white/90 z-[60] flex flex-col items-center justify-center backdrop-blur-sm hidden">
+        <div class="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-green-600 mb-4"></div>
+        <p class="text-slate-600 font-semibold animate-pulse text-sm">กำลังเชื่อมต่อ Google Sheets...</p>
     </div>
 
     <!-- MAIN CONTENT -->
-    <main class="container mx-auto p-4 space-y-6 mt-4">
+    <main class="container mx-auto p-4 space-y-6 mt-2">
 
-        <!-- CONFIG MODAL (Settings) -->
-        <div id="config-panel" class="modal fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
-            <div class="modal-content bg-white w-full max-w-lg rounded-xl shadow-2xl p-6 relative m-4">
-                <button onclick="closeConfig()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
-                <h3 class="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2"><i class="fas fa-link text-indigo-500"></i> ตั้งค่าการเชื่อมต่อ</h3>
-                <div class="grid gap-4">
-                    <div>
-                        <label class="text-xs font-bold text-slate-500">1. Google Sheet CSV Link</label>
-                        <input type="text" id="sheetCsvUrl" class="w-full border rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-slate-500">2. Apps Script URL</label>
-                        <input type="text" id="scriptUrl" class="w-full border rounded-lg px-3 py-2 text-sm mt-1 focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50">
-                    </div>
-                    <button onclick="saveConfig()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700 transition-all w-full">บันทึกและโหลดใหม่</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- DASHBOARD VIEW -->
-        <div id="dashboard-view" class="hidden space-y-6">
+        <!-- DASHBOARD AREA -->
+        <div id="dashboard-view" class="space-y-5 fade-in hidden">
+            
             <!-- KPI Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-slate-500 card">
-                    <p class="text-xs text-slate-500 font-bold uppercase">Total Budget</p>
-                    <h3 id="kpi-budget" class="text-3xl font-bold text-slate-700 mt-2">฿0</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-2"><span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">Budget</span><i class="fas fa-coins text-slate-300"></i></div>
+                    <h3 id="kpi-budget" class="text-lg md:text-2xl font-bold text-slate-700">฿0</h3>
                 </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500 card">
-                    <p class="text-xs text-slate-500 font-bold uppercase">Total Actual</p>
-                    <h3 id="kpi-actual" class="text-3xl font-bold text-slate-800 mt-2">฿0</h3>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-2"><span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">Actual</span><i class="fas fa-receipt text-blue-300"></i></div>
+                    <h3 id="kpi-actual" class="text-lg md:text-2xl font-bold text-blue-600">฿0</h3>
                 </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-emerald-500 card">
-                    <p class="text-xs text-slate-500 font-bold uppercase">Variance</p>
-                    <h3 id="kpi-variance" class="text-3xl font-bold text-emerald-600 mt-2">฿0</h3>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-2"><span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">Variance</span><i class="fas fa-chart-line text-emerald-300"></i></div>
+                    <h3 id="kpi-variance" class="text-lg md:text-2xl font-bold text-emerald-600">฿0</h3>
                 </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm border-l-4 border-purple-500 card">
-                    <p class="text-xs text-slate-500 font-bold uppercase">Work Orders</p>
-                    <h3 id="kpi-jobs" class="text-3xl font-bold text-purple-600 mt-2">0</h3>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-2"><span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">Jobs</span><i class="fas fa-tools text-purple-300"></i></div>
+                    <h3 id="kpi-jobs" class="text-lg md:text-2xl font-bold text-purple-600">0</h3>
                 </div>
             </div>
 
             <!-- Charts -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    <h3 class="font-bold text-slate-700 mb-4"><i class="far fa-chart-bar"></i> Monthly Trend</h3>
-                    <div class="h-72"><canvas id="mainChart"></canvas></div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+                <div class="lg:col-span-2 bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                    <h3 class="font-bold text-slate-700 mb-4 text-xs md:text-sm flex items-center gap-2 uppercase tracking-wide">
+                        <i class="far fa-chart-bar text-blue-500"></i> Monthly Trend
+                    </h3>
+                    <div class="h-48 md:h-72 w-full relative"><canvas id="mainChart"></canvas></div>
                 </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    <h3 class="font-bold text-slate-700 mb-4"><i class="fas fa-chart-pie"></i> Job Type</h3>
-                    <div class="h-64 flex justify-center"><canvas id="pieChart"></canvas></div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                    <h3 class="font-bold text-slate-700 mb-4 text-xs md:text-sm flex items-center gap-2 uppercase tracking-wide">
+                        <i class="fas fa-chart-pie text-purple-500"></i> Job Type
+                    </h3>
+                    <div class="h-40 md:h-64 flex justify-center relative"><canvas id="pieChart"></canvas></div>
                 </div>
             </div>
 
-            <!-- Table -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3">
-                    <h3 class="font-bold text-slate-700">Recent Logs</h3>
-                    <div class="flex flex-wrap gap-2 items-center">
-                        <select id="locationFilter" onchange="filterLocationChanged()" class="text-sm border rounded-lg px-3 py-1.5 outline-none bg-white cursor-pointer"><option value="All">All Locations</option></select>
-                        <select id="machineFilter" onchange="filterTable()" class="text-sm border rounded-lg px-3 py-1.5 outline-none bg-white cursor-pointer"><option value="All">All Machines</option></select>
-                        <input type="text" id="searchBox" placeholder="ค้นหา..." onkeyup="filterTable()" class="text-sm border rounded-lg px-3 py-1.5 outline-none">
+            <!-- Data List -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center gap-3">
+                    <h3 class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                        <i class="fas fa-list text-slate-400"></i> Transaction Logs
+                    </h3>
+                    
+                    <!-- Filters -->
+                    <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 no-scrollbar">
+                        <select id="locationFilter" onchange="filterLocationChanged()" class="text-xs bg-white border border-slate-200 rounded-lg px-2 py-2 outline-none shadow-sm min-w-[110px]"><option value="All">All Locations</option></select>
+                        <select id="machineFilter" onchange="filterTable()" class="text-xs bg-white border border-slate-200 rounded-lg px-2 py-2 outline-none shadow-sm min-w-[110px]"><option value="All">All Machines</option></select>
+                        <input type="text" id="searchBox" placeholder="ค้นหา..." onkeyup="filterTable()" class="text-xs bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none shadow-sm min-w-[120px]">
                     </div>
                 </div>
-                <div class="overflow-x-auto max-h-[500px]">
+
+                <!-- Desktop Table -->
+                <div id="desktop-table-view" class="overflow-x-auto hidden">
                     <table class="w-full text-sm text-left">
-                        <thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0">
+                        <thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0 shadow-sm">
                             <tr>
-                                <th class="px-6 py-3">Date</th>
-                                <th class="px-6 py-3">Machine</th>
-                                <th class="px-6 py-3">Type</th>
-                                <th class="px-6 py-3">Issue/Action</th>
-                                <th class="px-6 py-3 text-right">Budget</th>
-                                <th class="px-6 py-3 text-right">Actual</th>
-                                <th class="px-6 py-3 text-right">Variance</th>
+                                <th class="px-6 py-3 bg-slate-50">Date</th>
+                                <th class="px-6 py-3 bg-slate-50">Machine</th>
+                                <th class="px-6 py-3 bg-slate-50">Type</th>
+                                <th class="px-6 py-3 bg-slate-50">Details</th>
+                                <th class="px-6 py-3 bg-slate-50 text-right">Budget</th>
+                                <th class="px-6 py-3 bg-slate-50 text-right">Actual</th>
+                                <th class="px-6 py-3 bg-slate-50 text-right">Var</th>
                             </tr>
                         </thead>
-                        <tbody id="tableBody" class="divide-y divide-slate-100"></tbody>
+                        <tbody id="tableBody" class="divide-y divide-slate-100 bg-white"></tbody>
                     </table>
                 </div>
+
+                <!-- Mobile Cards -->
+                <div id="mobile-card-view" class="p-4 space-y-3 bg-slate-50 hidden"></div>
+                <div class="p-3 bg-white border-t border-slate-100 text-center text-xs text-slate-400" id="record-count">Loading...</div>
             </div>
         </div>
+        
+        <!-- Error State -->
+        <div id="error-state" class="hidden text-center py-20 px-6">
+            <div class="bg-red-50 text-red-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fas fa-exclamation-triangle"></i></div>
+            <h3 class="text-lg font-bold text-slate-700">ไม่สามารถดึงข้อมูลได้</h3>
+            <p class="text-sm text-slate-500 mt-2">อาจเป็นเพราะปัญหา CORS หรือลิงก์ไม่ถูกต้อง<br>ลองรีโหลดหน้าเว็บ หรือตรวจสอบลิงก์ Google Sheet</p>
+            <button onclick="location.reload()" class="mt-6 bg-slate-800 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg">ลองใหม่</button>
+        </div>
+
     </main>
 
-    <!-- ADD DATA MODAL -->
-    <div id="addModal" class="modal fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
-        <div class="modal-content bg-white w-full max-w-lg rounded-xl shadow-2xl p-6 relative m-4 max-h-[90vh] overflow-y-auto">
-            <button onclick="closeAddModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="fas fa-times text-xl"></i></button>
-            
-            <h2 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <div class="bg-blue-100 p-2 rounded-lg"><i class="fas fa-edit text-blue-600"></i></div>
-                บันทึกการซ่อมบำรุง
-            </h2>
-            
-            <form id="addForm" onsubmit="submitData(event)" class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">วันที่ (Date)</label>
-                        <input type="date" name="date" id="formDate" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">ประเภท (Type)</label>
-                        <select name="type" id="formType" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                            <option value="BM">BM (ซ่อมฉุกเฉิน)</option>
-                            <option value="PM">PM (ตามแผน)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">เครื่องจักร (Machine)</label>
-                        <select name="machine_id" id="formMachine" onchange="autoFillLocModal()" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                            <!-- JS will populate -->
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">สถานที่ (Location)</label>
-                        <input type="text" name="location" id="formLoc" readonly class="w-full bg-slate-100 border border-slate-300 rounded-lg p-2.5 text-sm text-slate-500">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1">อาการเสีย (Issue)</label>
-                    <input type="text" name="issue" placeholder="เช่น เสียงดัง, เซนเซอร์ไม่ทำงาน" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1">การแก้ไข (Action)</label>
-                    <input type="text" name="action" placeholder="เช่น เปลี่ยนอะไหล่, ปรับตั้ง" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">งบประมาณ (Budget)</label>
-                        <input type="number" name="budget" value="0" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">จ่ายจริง (Actual)</label>
-                        <input type="number" name="actual" value="0" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1">หมายเหตุ (Remark)</label>
-                    <input type="text" name="remark" placeholder="เช่น Over Budget, Cost Saving" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                </div>
-
-                <div class="pt-4 flex gap-3">
-                    <button type="button" onclick="closeAddModal()" class="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 font-medium transition-colors">ยกเลิก</button>
-                    <button type="submit" id="submitBtn" class="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-bold shadow-lg transition-all flex justify-center items-center gap-2">
-                        <span>บันทึกข้อมูล</span>
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <script>
-        // CONFIG - ใส่ลิงก์ของคุณตรงนี้เลย
-        // แปลง pubhtml เป็น csv link: pubhtml -> pub?output=csv
-        const DEFAULT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTFI8SjwYbMa5nobhz0NzCFryV8Qdo7jWneLPDJeZCohSBUM5x1TYrO57ojtJPPM8JPyZqoqkfZFqgn/pub?output=csv";
-        const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrr5ABJbkS6G_r3TYaaKJnrGxQrm9flHhR2xpeGvoReNwh6sV-P39l87m3zubWaazuAA/exec";
+        // CONFIG
+        // ลิงก์ Google Sheet ที่คุณให้มา (แบบรวม Sheet ทั้งหมดไว้ใน Sheet เดียว)
+        const DEFAULT_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTFI8SjwYbMa5nobhz0NzCFryV8Qdo7jWneLPDJeZCohSBUM5x1TYrO57ojtJPPM8JPyZqoqkfZFqgn/pub?output=csv";
         
-        let CSV_URL = "";
-        let SCRIPT_URL = "";
-        
-        let rawData = [], yearsList = [], locMachineMap = {}, machineToLoc = {};
+        let rawData = [], yearsList = [], locMachineMap = {};
         let currentYear = null, charts = {};
+        let currentView = 'mobile';
 
         // --- INIT ---
         window.onload = () => {
-            // ใช้ค่า Default หรือจาก LocalStorage ถ้ามีการแก้ไข
-            CSV_URL = localStorage.getItem('maint_csv_url') || DEFAULT_CSV_URL;
-            SCRIPT_URL = localStorage.getItem('maint_script_url') || DEFAULT_SCRIPT_URL;
-            
-            // อัปเดตใน Modal เผื่อ user อยากแก้
-            document.getElementById('sheetCsvUrl').value = CSV_URL;
-            document.getElementById('scriptUrl').value = SCRIPT_URL;
-            
-            loadData();
+            // Auto-detect screen size
+            if (window.innerWidth >= 768) switchView('desktop');
+            else switchView('mobile');
+
+            loadDataFromUrl(DEFAULT_URL);
         };
 
-        function openConfig() {
-            document.getElementById('config-panel').classList.add('active');
-        }
-        
-        function closeConfig() {
-            document.getElementById('config-panel').classList.remove('active');
-        }
-
-        function saveConfig() {
-            CSV_URL = document.getElementById('sheetCsvUrl').value;
-            SCRIPT_URL = document.getElementById('scriptUrl').value;
-            
-            if (!CSV_URL) return Swal.fire('Error', 'กรุณาใส่ลิงก์ CSV', 'error');
-            
-            localStorage.setItem('maint_csv_url', CSV_URL);
-            localStorage.setItem('maint_script_url', SCRIPT_URL);
-            
-            closeConfig();
-            loadData();
-        }
-
-        // --- LOAD DATA ---
-        function loadData() {
+        // --- DATA LOADING ---
+        function loadDataFromUrl(url = DEFAULT_URL) {
             document.getElementById('loading-overlay').classList.remove('hidden');
+            document.getElementById('error-state').classList.add('hidden');
             
-            Papa.parse(CSV_URL, {
+            // Cache Buster
+            const fetchUrl = url + '&t=' + new Date().getTime();
+
+            Papa.parse(fetchUrl, {
                 download: true,
                 header: true,
                 skipEmptyLines: true,
                 complete: (results) => {
-                    processData(results.data);
-                    initDashboard();
+                    if (results.data && results.data.length > 0) {
+                        processData(results.data);
+                        initDashboard();
+                        document.getElementById('dashboard-view').classList.remove('hidden');
+                    } else {
+                        document.getElementById('error-state').classList.remove('hidden');
+                    }
                     document.getElementById('loading-overlay').classList.add('hidden');
                 },
                 error: (err) => {
+                    console.error(err);
                     document.getElementById('loading-overlay').classList.add('hidden');
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'โหลดข้อมูลไม่สำเร็จ',
-                        text: 'กรุณาตรวจสอบลิงก์ Google Sheet หรือสิทธิ์การเข้าถึง (ต้อง Publish to Web เป็น CSV)',
-                        footer: err.message
-                    });
+                    document.getElementById('error-state').classList.remove('hidden');
                 }
             });
         }
 
         function processData(json) {
             rawData = [];
-            yearsList = [];
-            locMachineMap = {};
-            machineToLoc = {};
-
             json.forEach(row => {
                 let dateVal = row['Date'] || row['date'] || row['วันที่'];
                 if (!dateVal) return;
 
-                // Date Parsing
-                let dateObj = new Date(dateVal);
-                if (isNaN(dateObj) && typeof dateVal === 'string' && dateVal.includes('/')) {
-                    const p = dateVal.split('/');
-                    // Try DD/MM/YYYY
-                    dateObj = new Date(p[2], p[1]-1, p[0]);
-                }
-
-                if (!isNaN(dateObj)) {
-                    const mId = row['Machine_ID'] || row['MachineID'] || '';
-                    const loc = row['Location'] || row['location'] || '';
-                    
-                    if (mId && loc) machineToLoc[mId] = loc;
-
-                    const item = {
-                        year: dateObj.getFullYear(),
-                        dateStr: dateObj.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-                        rawDate: dateObj,
-                        id: mId,
-                        loc: loc,
-                        type: row['Job_Type'] || row['Type'] || 'BM',
-                        issue: row['Issue'] || row['Description'] || '',
-                        action: row['Action_Taken'] || row['Action'] || '',
-                        budget: parseFloat(row['Budget'] || 0),
-                        actual: parseFloat(row['Actual'] || row['Actual_Cost'] || 0),
-                        variance: parseFloat(row['Variance'] || 0),
-                        remark: row['Remark'] || ''
-                    };
-                    // Variance calculation fallback
-                    if (item.variance === 0 && (item.budget !== 0 || item.actual !== 0)) {
-                        item.variance = item.budget - item.actual;
+                let dateObj;
+                if (typeof dateVal === 'number') {
+                    dateObj = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
+                } else {
+                    const s = String(dateVal).trim();
+                    if (s.includes('-')) dateObj = new Date(s); // YYYY-MM-DD
+                    else if (s.includes('/')) { 
+                        const p = s.split('/'); 
+                        dateObj = new Date(p[2], p[1]-1, p[0]); // DD/MM/YYYY
                     }
-                    rawData.push(item);
                 }
+
+                if (!dateObj || isNaN(dateObj)) return;
+
+                rawData.push({
+                    year: dateObj.getFullYear(),
+                    dateStr: dateObj.toLocaleDateString('th-TH', {day:'2-digit', month:'2-digit', year:'2-digit'}),
+                    rawDate: dateObj,
+                    id: row['Machine_ID']||row['MachineID']||'-',
+                    loc: row['Location']||row['location']||'-',
+                    type: row['Job_Type']||row['Type']||'BM',
+                    issue: row['Issue']||row['Description']||'-',
+                    action: row['Action_Taken']||row['Action']||'-',
+                    budget: parseFloat(row['Budget']||0),
+                    actual: parseFloat(row['Actual']||row['Actual_Cost']||0),
+                    variance: parseFloat(row['Variance']||((row['Budget']||0)-(row['Actual']||row['Actual_Cost']||0))),
+                    remark: row['Remark']||''
+                });
             });
         }
 
-        // --- DASHBOARD CORE ---
+        // --- DASHBOARD LOGIC ---
         function initDashboard() {
-            // Years
+            // Extract Years
             const uniqueYears = new Set(rawData.map(d => d.year));
             yearsList = Array.from(uniqueYears).sort((a, b) => a - b);
 
-            // Locations & Machines Map (Global Data)
+            // Extract Locations & Machines
+            locMachineMap = {};
             const uniqueLocations = new Set();
             rawData.forEach(row => {
-                if (row.loc) {
+                if(row.loc !== '-') {
                     uniqueLocations.add(row.loc);
-                    if (!locMachineMap[row.loc]) locMachineMap[row.loc] = new Set();
-                    if (row.id) locMachineMap[row.loc].add(row.id);
+                    if(!locMachineMap[row.loc]) locMachineMap[row.loc] = new Set();
+                    locMachineMap[row.loc].add(row.id);
                 }
             });
 
-            // Fill Location Filter
+            // Filters
             const locSelect = document.getElementById('locationFilter');
             locSelect.innerHTML = '<option value="All">All Locations</option>';
             Array.from(uniqueLocations).sort().forEach(l => {
                 const opt = document.createElement('option');
                 opt.value = l; opt.innerText = l; locSelect.appendChild(opt);
             });
-
-            // Initial Machine Filter
             updateMachineFilter('All');
 
-            // Fill Modal Machine List
-            const modalMachineSelect = document.getElementById('formMachine');
-            modalMachineSelect.innerHTML = '<option value="">เลือกเครื่องจักร...</option>';
-            const allUniqueMachines = new Set(rawData.map(d => d.id).filter(id => id));
-            Array.from(allUniqueMachines).sort().forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m; opt.innerText = m; modalMachineSelect.appendChild(opt);
-            });
-
             // Year Buttons
-            const btnContainer = document.getElementById('year-selector-container');
-            btnContainer.innerHTML = '';
+            const container = document.getElementById('year-selector-container');
+            container.innerHTML = '';
             if (yearsList.length > 0) {
-                btnContainer.classList.remove('hidden');
                 yearsList.forEach(year => {
                     const btn = document.createElement('button');
                     btn.id = `btn-${year}`;
-                    btn.className = "px-3 py-1 rounded text-sm text-slate-400 hover:text-white transition-colors whitespace-nowrap";
+                    btn.className = "px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap bg-white border border-slate-200 text-slate-500 shadow-sm mr-2 hover:bg-slate-50 transition-colors";
                     btn.innerText = year;
                     btn.onclick = () => switchYear(year);
-                    btnContainer.appendChild(btn);
+                    container.appendChild(btn);
                 });
-                
-                document.getElementById('dashboard-view').classList.remove('hidden');
-                // Select latest year or keep current
-                if(!currentYear || !yearsList.includes(currentYear)) {
-                    switchYear(yearsList[yearsList.length - 1]);
-                } else {
-                    switchYear(currentYear);
-                }
+                // Select latest
+                switchYear(yearsList[yearsList.length - 1]);
             }
         }
 
-        // --- FILTER LOGIC (Location -> Machine) ---
-        function filterLocationChanged() {
-            const selectedLoc = document.getElementById('locationFilter').value;
-            updateMachineFilter(selectedLoc);
+        // --- FILTER & RENDER ---
+        function switchView(mode) {
+            currentView = mode;
+            const dtBtn = document.getElementById('btn-desktop');
+            const mbBtn = document.getElementById('btn-mobile');
+            const dView = document.getElementById('desktop-table-view');
+            const mView = document.getElementById('mobile-card-view');
+
+            if (mode === 'desktop') {
+                dtBtn.classList.add('text-blue-600','bg-white','shadow-sm'); dtBtn.classList.remove('text-slate-400');
+                mbBtn.classList.add('text-slate-400'); mbBtn.classList.remove('text-blue-600','bg-white','shadow-sm');
+                dView.classList.remove('hidden'); mView.classList.add('hidden');
+            } else {
+                mbBtn.classList.add('text-blue-600','bg-white','shadow-sm'); mbBtn.classList.remove('text-slate-400');
+                dtBtn.classList.add('text-slate-400'); dtBtn.classList.remove('text-blue-600','bg-white','shadow-sm');
+                mView.classList.remove('hidden'); dView.classList.add('hidden');
+            }
             filterTable();
         }
 
-        function updateMachineFilter(location) {
-            const machineSelect = document.getElementById('machineFilter');
-            machineSelect.innerHTML = '<option value="All">All Machines</option>';
-            
-            let machinesToShow = new Set();
-            if (location === 'All') {
-                // Show all machines available in current data
-                rawData.forEach(r => { if(r.id) machinesToShow.add(r.id); });
-            } else {
-                if (locMachineMap[location]) machinesToShow = locMachineMap[location];
-            }
-
-            Array.from(machinesToShow).sort().forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m; opt.innerText = m; machineSelect.appendChild(opt);
-            });
-            machineSelect.value = 'All';
-        }
-
-        // --- DATA SUBMISSION ---
-        function openAddModal() {
-            document.getElementById('addModal').classList.add('active');
-            document.getElementById('formDate').valueAsDate = new Date();
-        }
-
-        function closeAddModal() {
-            document.getElementById('addModal').classList.remove('active');
-        }
-
-        function autoFillLocModal() {
-            const mId = document.getElementById('formMachine').value;
-            if (machineToLoc[mId]) {
-                document.getElementById('formLoc').value = machineToLoc[mId];
-            }
-        }
-
-        function submitData(e) {
-            e.preventDefault();
-            if (!SCRIPT_URL) return Swal.fire('Error', 'ไม่พบ Apps Script URL', 'error');
-
-            const btn = document.getElementById('submitBtn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึก...';
-            btn.disabled = true;
-
-            const form = document.getElementById('addForm');
-            const data = {
-                date: form.date.value, // YYYY-MM-DD
-                machine_id: form.machine_id.value,
-                location: form.location.value,
-                type: form.type.value,
-                issue: form.issue.value,
-                action: form.action.value,
-                budget: form.budget.value,
-                actual: form.actual.value,
-                variance: parseFloat(form.budget.value) - parseFloat(form.actual.value),
-                remark: form.remark.value
-            };
-
-            fetch(SCRIPT_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            })
-            .then(() => {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'บันทึกสำเร็จ!',
-                    text: 'ข้อมูลถูกส่งไป Google Sheet แล้ว (ระบบจะรีโหลดข้อมูลใหม่)',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-                closeAddModal();
-                form.reset();
-                setTimeout(loadData, 2000); 
-            })
-            .catch(err => {
-                Swal.fire('Error', 'บันทึกไม่สำเร็จ: ' + err.message, 'error');
-            })
-            .finally(() => {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            });
-        }
-
-        // --- DASHBOARD HELPERS ---
         function switchYear(year) {
             currentYear = year;
             yearsList.forEach(y => {
                 const btn = document.getElementById(`btn-${y}`);
-                if (btn) btn.className = y === year 
-                    ? "px-3 py-1 rounded text-sm bg-blue-600 text-white font-bold shadow"
-                    : "px-3 py-1 rounded text-sm text-slate-400 hover:text-white";
+                if(btn) btn.className = y === year 
+                    ? "px-4 py-1.5 rounded-full text-sm font-bold bg-green-600 text-white shadow-md transform scale-105 transition-all mr-2 border-transparent"
+                    : "px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-slate-200 text-slate-500 shadow-sm hover:bg-slate-50 mr-2";
             });
             renderDashboard();
+        }
+
+        function filterLocationChanged() {
+            updateMachineFilter(document.getElementById('locationFilter').value);
+            renderDashboard();
+        }
+
+        function updateMachineFilter(loc) {
+            const select = document.getElementById('machineFilter');
+            select.innerHTML = '<option value="All">All Machines</option>';
+            let machines = new Set();
+            if(loc === 'All') rawData.forEach(r => { if(r.id) machines.add(r.id); });
+            else if(locMachineMap[loc]) machines = locMachineMap[loc];
+            
+            Array.from(machines).sort().forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m; opt.innerText = m; select.appendChild(opt);
+            });
+            select.value = 'All';
         }
 
         function filterTable() { renderDashboard(); }
 
         function renderDashboard() {
-            const data = getFilteredData();
-            
-            const totalBudget = data.reduce((s, i) => s + i.budget, 0);
-            const totalActual = data.reduce((s, i) => s + i.actual, 0);
-            const totalVariance = data.reduce((s, i) => s + i.variance, 0);
-
-            document.getElementById('kpi-budget').innerText = formatMoney(totalBudget);
-            document.getElementById('kpi-actual').innerText = formatMoney(totalActual);
-            
-            const varEl = document.getElementById('kpi-variance');
-            varEl.innerText = (totalVariance > 0 ? '+' : '') + formatMoney(totalVariance);
-            varEl.className = `text-3xl font-bold mt-2 ${totalVariance >= 0 ? 'text-emerald-600' : 'text-red-600'}`;
-            document.getElementById('kpi-jobs').innerText = data.length;
-
-            renderCharts(data);
-            renderTable(data);
-        }
-
-        function getFilteredData() {
             const locVal = document.getElementById('locationFilter').value;
             const macVal = document.getElementById('machineFilter').value;
             const searchVal = document.getElementById('searchBox').value.toLowerCase();
 
-            return rawData.filter(d => {
+            const filtered = rawData.filter(d => {
                 return d.year === currentYear &&
                        (locVal === 'All' || d.loc === locVal) &&
                        (macVal === 'All' || d.id === macVal) &&
-                       ((d.id && d.id.toLowerCase().includes(searchVal)) || 
-                        (d.issue && d.issue.toLowerCase().includes(searchVal)));
+                       ((d.id.toLowerCase().includes(searchVal)) || (d.issue.toLowerCase().includes(searchVal)));
             });
+
+            // KPIs
+            const budget = filtered.reduce((s,i)=>s+i.budget,0);
+            const actual = filtered.reduce((s,i)=>s+i.actual,0);
+            const variance = filtered.reduce((s,i)=>s+i.variance,0);
+
+            document.getElementById('kpi-budget').innerText = formatMoney(budget);
+            document.getElementById('kpi-actual').innerText = formatMoney(actual);
+            const vEl = document.getElementById('kpi-variance');
+            vEl.innerText = (variance>0?'+':'') + formatMoney(variance);
+            vEl.className = `text-lg font-bold ${variance>=0?'text-emerald-600':'text-red-500'}`;
+            document.getElementById('kpi-jobs').innerText = filtered.length;
+            document.getElementById('record-count').innerText = `${filtered.length} records`;
+
+            renderCharts(filtered);
+            renderLists(filtered);
         }
 
-        function renderCharts(data) {
-            const mActual = new Array(12).fill(0);
-            const mBudget = new Array(12).fill(0);
-            let pm = 0, bm = 0;
-
-            data.forEach(d => {
-                const m = d.rawDate.getMonth();
-                mActual[m] += d.actual;
-                mBudget[m] += d.budget;
-                if (d.type.toUpperCase() === 'PM') pm++; else bm++;
-            });
-
-            const ctxMain = document.getElementById('mainChart').getContext('2d');
-            if (charts.main) charts.main.destroy();
-            charts.main = new Chart(ctxMain, {
-                type: 'bar',
-                data: {
-                    labels: ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."],
-                    datasets: [
-                        { label: 'Budget', data: mBudget, backgroundColor: '#cbd5e1', borderRadius: 4 },
-                        { label: 'Actual', data: mActual, backgroundColor: '#3b82f6', borderRadius: 4 }
-                    ]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
-
-            const ctxPie = document.getElementById('pieChart').getContext('2d');
-            if (charts.pie) charts.pie.destroy();
-            charts.pie = new Chart(ctxPie, {
-                type: 'doughnut',
-                data: {
-                    labels: ['PM', 'BM'],
-                    datasets: [{ data: [pm, bm], backgroundColor: ['#10b981', '#ef4444'], borderWidth: 0 }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
-        }
-
-        function renderTable(data) {
+        function renderLists(data) {
+            const sorted = data.sort((a,b)=>b.rawDate-a.rawDate).slice(0, 100); // Limit to 100
+            
+            // Desktop Table
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
-            data.sort((a, b) => b.rawDate - a.rawDate).slice(0, 100).forEach(row => {
+            sorted.forEach(row => {
                 const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-50 border-b border-slate-50";
+                tr.className = "hover:bg-slate-50 border-b border-slate-50 transition-colors";
                 const varColor = row.variance >= 0 ? 'text-emerald-600' : 'text-red-600';
                 tr.innerHTML = `
-                    <td class="px-6 py-3 whitespace-nowrap">${row.dateStr}</td>
-                    <td class="px-6 py-3 font-bold">${row.id}</td>
-                    <td class="px-6 py-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${row.type==='PM'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}">${row.type}</span></td>
-                    <td class="px-6 py-3">
-                        <div class="font-medium text-slate-700">${row.issue}</div>
-                        <div class="text-xs text-slate-500">${row.action}</div>
-                    </td>
+                    <td class="px-6 py-3 whitespace-nowrap text-slate-500">${row.dateStr}</td>
+                    <td class="px-6 py-3 font-bold text-slate-700">${row.id}</td>
+                    <td class="px-6 py-3"><span class="px-2 py-1 rounded-md text-xs font-bold ${row.type==='PM'?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}">${row.type}</span></td>
+                    <td class="px-6 py-3"><div class="font-medium text-slate-700">${row.issue}</div><div class="text-xs text-slate-400">${row.action}</div></td>
                     <td class="px-6 py-3 text-right text-slate-400">${formatMoney(row.budget)}</td>
                     <td class="px-6 py-3 text-right font-bold text-slate-700">${formatMoney(row.actual)}</td>
-                    <td class="px-6 py-3 text-right font-bold text-xs ${varColor}">${(row.variance>0?'+':'') + formatMoney(row.variance)}</td>
+                    <td class="px-6 py-3 text-right font-bold text-xs ${varColor}">${formatMoney(row.variance)}</td>
                 `;
                 tbody.appendChild(tr);
             });
+
+            // Mobile Cards
+            const cardContainer = document.getElementById('mobile-card-view');
+            cardContainer.innerHTML = '';
+            sorted.forEach(row => {
+                const varColor = row.variance >= 0 ? 'text-emerald-600' : 'text-red-600';
+                const typeColor = row.type === 'PM' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700';
+                cardContainer.innerHTML += `
+                    <div class="mobile-card border-l-4 ${row.type==='PM'?'border-l-emerald-500':'border-l-red-500'}">
+                        <div class="mobile-card-header">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] font-bold ${typeColor} px-2 py-0.5 rounded">${row.type}</span>
+                                <span class="font-bold text-slate-700 text-sm">${row.id}</span>
+                            </div>
+                            <span class="text-xs text-slate-400">${row.dateStr}</span>
+                        </div>
+                        <div class="mb-3">
+                            <div class="text-sm font-medium text-slate-700">${row.issue}</div>
+                            <div class="text-xs text-slate-500 truncate">${row.action}</div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1 pt-2 border-t border-slate-50">
+                            <div><div class="mobile-label">Budget</div><div class="mobile-value text-slate-400">${formatMoney(row.budget)}</div></div>
+                            <div class="text-right"><div class="mobile-label">Actual</div><div class="mobile-value text-slate-700 font-bold">${formatMoney(row.actual)}</div></div>
+                            <div class="text-right"><div class="mobile-label">Var</div><div class="mobile-value ${varColor} font-bold">${(row.variance>0?'+':'')+formatMoney(row.variance)}</div></div>
+                        </div>
+                    </div>`;
+            });
         }
 
-        const formatMoney = (n) => '฿' + n.toLocaleString('th-TH');
+        // --- CHARTS ---
+        function renderCharts(data) {
+            const mAct = new Array(12).fill(0), mBud = new Array(12).fill(0);
+            let pm = 0, bm = 0;
+            data.forEach(d => {
+                const m = d.rawDate.getMonth();
+                mAct[m]+=d.actual; mBud[m]+=d.budget;
+                d.type === 'PM' ? pm++ : bm++;
+            });
+
+            if(charts.main) charts.main.destroy();
+            charts.main = new Chart(document.getElementById('mainChart'), {
+                type: 'bar',
+                data: {
+                    labels: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+                    datasets: [{ label:'Bud', data:mBud, backgroundColor:'#cbd5e1', borderRadius:4 }, { label:'Act', data:mAct, backgroundColor:'#3b82f6', borderRadius:4 }]
+                },
+                options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10}}} }
+            });
+
+            if(charts.pie) charts.pie.destroy();
+            charts.pie = new Chart(document.getElementById('pieChart'), {
+                type: 'doughnut',
+                data: { labels: ['PM','BM'], datasets: [{ data:[pm,bm], backgroundColor:['#10b981','#ef4444'], borderWidth:0 }] },
+                options: { responsive:true, maintainAspectRatio:false, cutout:'70%', plugins:{legend:{position:'right', labels:{boxWidth:10}}} }
+            });
+        }
+
+        const formatMoney = (n) => '฿' + n.toLocaleString('th-TH', {maximumFractionDigits:0});
     </script>
 </body>
 </html>
