@@ -105,6 +105,32 @@
         <!-- DASHBOARD AREA -->
         <div id="dashboard-view" class="space-y-5 fade-in hidden">
             
+            <!-- --- NEW FILTER SECTION (MOVED TO TOP) --- -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                <h3 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
+                    <i class="fas fa-filter text-slate-400"></i> ตัวกรองข้อมูล (Filters)
+                </h3>
+                <div class="flex flex-col md:flex-row gap-3">
+                    <div class="flex gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar flex-1">
+                        <select id="locationFilter" onchange="filterLocationChanged()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[120px] focus:ring-2 focus:ring-blue-500">
+                            <option value="All">ทุกสถานที่</option>
+                        </select>
+                        <select id="machineFilter" onchange="filterTable()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[120px] focus:ring-2 focus:ring-blue-500">
+                            <option value="All">ทุกเครื่องจักร</option>
+                        </select>
+                        <select id="typeFilter" onchange="filterTable()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[100px] focus:ring-2 focus:ring-blue-500">
+                            <option value="All">ทุกประเภท</option>
+                            <option value="PM">PM</option>
+                            <option value="BM">BM</option>
+                        </select>
+                    </div>
+                    <div class="relative md:w-64">
+                        <i class="fas fa-search absolute left-3 top-3 text-slate-400 text-xs"></i>
+                        <input type="text" id="searchBox" placeholder="ค้นหา (Issue, Remark)..." onkeyup="filterTable()" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2.5 outline-none shadow-sm focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            </div>
+
             <!-- KPI Cards -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
@@ -143,17 +169,11 @@
 
             <!-- Data List -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center gap-3">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                     <h3 class="font-bold text-slate-700 text-sm flex items-center gap-2">
                         <i class="fas fa-list text-slate-400"></i> Transaction Logs
                     </h3>
-                    
-                    <!-- Filters -->
-                    <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 no-scrollbar">
-                        <select id="locationFilter" onchange="filterLocationChanged()" class="text-xs bg-white border border-slate-200 rounded-lg px-2 py-2 outline-none shadow-sm min-w-[110px]"><option value="All">All Locations</option></select>
-                        <select id="machineFilter" onchange="filterTable()" class="text-xs bg-white border border-slate-200 rounded-lg px-2 py-2 outline-none shadow-sm min-w-[110px]"><option value="All">All Machines</option></select>
-                        <input type="text" id="searchBox" placeholder="ค้นหา..." onkeyup="filterTable()" class="text-xs bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none shadow-sm min-w-[120px]">
-                    </div>
+                    <span id="record-count" class="text-xs text-slate-400">Loading...</span>
                 </div>
 
                 <!-- Desktop Table -->
@@ -176,7 +196,10 @@
 
                 <!-- Mobile Cards -->
                 <div id="mobile-card-view" class="p-4 space-y-3 bg-slate-50 hidden"></div>
-                <div class="p-3 bg-white border-t border-slate-100 text-center text-xs text-slate-400" id="record-count">Loading...</div>
+                
+                <div class="p-3 bg-white border-t border-slate-100 text-center">
+                    <button onclick="showAllData()" class="text-xs text-blue-500 font-bold hover:underline">แสดงข้อมูลทั้งหมด</button>
+                </div>
             </div>
         </div>
         
@@ -196,8 +219,10 @@
         const DEFAULT_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTFI8SjwYbMa5nobhz0NzCFryV8Qdo7jWneLPDJeZCohSBUM5x1TYrO57ojtJPPM8JPyZqoqkfZFqgn/pub?output=csv";
         
         let rawData = [], yearsList = [], locMachineMap = {};
-        let currentYear = null, charts = {};
+        let currentYear = null;
+        let chartInstances = {}; 
         let currentView = 'mobile';
+        let showLimit = 500; // เพิ่มจำนวนการแสดงผล
 
         // --- INIT ---
         window.onload = () => {
@@ -207,6 +232,11 @@
 
             loadDataFromUrl(DEFAULT_URL);
         };
+
+        function showAllData() {
+            showLimit = 10000; // Show a lot
+            filterTable();
+        }
 
         // --- DATA LOADING ---
         function loadDataFromUrl(url = DEFAULT_URL) {
@@ -245,21 +275,36 @@
                 if (!dateVal) return;
 
                 let dateObj;
+                // Improved Date Parsing
                 if (typeof dateVal === 'number') {
                     dateObj = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
                 } else {
                     const s = String(dateVal).trim();
-                    if (s.includes('-')) dateObj = new Date(s); // YYYY-MM-DD
-                    else if (s.includes('/')) { 
-                        const p = s.split('/'); 
-                        dateObj = new Date(p[2], p[1]-1, p[0]); // DD/MM/YYYY
+                    if (s.includes('-')) {
+                        // Handle YYYY-MM-DD
+                        dateObj = new Date(s);
+                    } else if (s.includes('/')) {
+                        const p = s.split('/');
+                        // Handle multiple formats: DD/MM/YYYY or MM/DD/YYYY
+                        // Try DD/MM/YYYY first (common in Thailand)
+                        if(p[0].length <= 2 && p[1].length <= 2 && p[2].length == 4) {
+                             dateObj = new Date(p[2], p[1]-1, p[0]);
+                        } else {
+                             // Fallback to standard JS parsing
+                             dateObj = new Date(s);
+                        }
+                    } else {
+                        // Try generic parse
+                        dateObj = new Date(s);
                     }
                 }
 
-                if (!dateObj || isNaN(dateObj)) return;
+                // If date is invalid, skip row
+                if (!dateObj || isNaN(dateObj.getTime())) return;
 
                 rawData.push({
                     year: dateObj.getFullYear(),
+                    month: dateObj.getMonth(), // 0-11
                     dateStr: dateObj.toLocaleDateString('th-TH', {day:'2-digit', month:'2-digit', year:'2-digit'}),
                     rawDate: dateObj,
                     id: row['Machine_ID']||row['MachineID']||'-',
@@ -294,7 +339,7 @@
 
             // Filters
             const locSelect = document.getElementById('locationFilter');
-            locSelect.innerHTML = '<option value="All">All Locations</option>';
+            locSelect.innerHTML = '<option value="All">ทุกสถานที่</option>';
             Array.from(uniqueLocations).sort().forEach(l => {
                 const opt = document.createElement('option');
                 opt.value = l; opt.innerText = l; locSelect.appendChild(opt);
@@ -342,7 +387,7 @@
             currentYear = year;
             yearsList.forEach(y => {
                 const btn = document.getElementById(`btn-${y}`);
-                if(btn) btn.className = y === year 
+                if (btn) btn.className = y === year 
                     ? "px-4 py-1.5 rounded-full text-sm font-bold bg-green-600 text-white shadow-md transform scale-105 transition-all mr-2 border-transparent"
                     : "px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-slate-200 text-slate-500 shadow-sm hover:bg-slate-50 mr-2";
             });
@@ -356,7 +401,7 @@
 
         function updateMachineFilter(loc) {
             const select = document.getElementById('machineFilter');
-            select.innerHTML = '<option value="All">All Machines</option>';
+            select.innerHTML = '<option value="All">ทุกเครื่องจักร</option>';
             let machines = new Set();
             if(loc === 'All') rawData.forEach(r => { if(r.id) machines.add(r.id); });
             else if(locMachineMap[loc]) machines = locMachineMap[loc];
@@ -373,12 +418,14 @@
         function renderDashboard() {
             const locVal = document.getElementById('locationFilter').value;
             const macVal = document.getElementById('machineFilter').value;
+            const typeVal = document.getElementById('typeFilter').value;
             const searchVal = document.getElementById('searchBox').value.toLowerCase();
 
             const filtered = rawData.filter(d => {
                 return d.year === currentYear &&
                        (locVal === 'All' || d.loc === locVal) &&
                        (macVal === 'All' || d.id === macVal) &&
+                       (typeVal === 'All' || d.type === typeVal) &&
                        ((d.id.toLowerCase().includes(searchVal)) || (d.issue.toLowerCase().includes(searchVal)));
             });
 
@@ -391,16 +438,17 @@
             document.getElementById('kpi-actual').innerText = formatMoney(actual);
             const vEl = document.getElementById('kpi-variance');
             vEl.innerText = (variance>0?'+':'') + formatMoney(variance);
-            vEl.className = `text-lg font-bold ${variance>=0?'text-emerald-600':'text-red-500'}`;
+            vEl.className = `text-lg md:text-2xl font-bold ${variance>=0?'text-emerald-600':'text-red-500'}`;
             document.getElementById('kpi-jobs').innerText = filtered.length;
-            document.getElementById('record-count').innerText = `${filtered.length} records`;
+            document.getElementById('record-count').innerText = `${filtered.length} รายการ`;
 
             renderCharts(filtered);
             renderLists(filtered);
         }
 
         function renderLists(data) {
-            const sorted = data.sort((a,b)=>b.rawDate-a.rawDate).slice(0, 100); // Limit to 100
+            // Increase limit from 100 to 500
+            const sorted = data.sort((a,b)=>b.rawDate-a.rawDate).slice(0, showLimit); 
             
             // Desktop Table
             const tbody = document.getElementById('tableBody');
@@ -451,26 +499,30 @@
 
         // --- CHARTS ---
         function renderCharts(data) {
-            const mAct = new Array(12).fill(0), mBud = new Array(12).fill(0);
+            const mActual = new Array(12).fill(0);
+            const mBudget = new Array(12).fill(0);
             let pm = 0, bm = 0;
+
             data.forEach(d => {
-                const m = d.rawDate.getMonth();
-                mAct[m]+=d.actual; mBud[m]+=d.budget;
-                d.type === 'PM' ? pm++ : bm++;
+                mActual[d.month] += d.actual;
+                mBudget[d.month] += d.budget;
+                if (d.type.toUpperCase() === 'PM') pm++; else bm++;
             });
 
-            if(charts.main) charts.main.destroy();
-            charts.main = new Chart(document.getElementById('mainChart'), {
+            const ctxMain = document.getElementById('mainChart').getContext('2d');
+            if(chartInstances.main) chartInstances.main.destroy();
+            chartInstances.main = new Chart(ctxMain, {
                 type: 'bar',
                 data: {
                     labels: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
-                    datasets: [{ label:'Bud', data:mBud, backgroundColor:'#cbd5e1', borderRadius:4 }, { label:'Act', data:mAct, backgroundColor:'#3b82f6', borderRadius:4 }]
+                    datasets: [{ label:'Bud', data:mBudget, backgroundColor:'#cbd5e1', borderRadius:4 }, { label:'Act', data:mActual, backgroundColor:'#3b82f6', borderRadius:4 }]
                 },
                 options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10}}} }
             });
 
-            if(charts.pie) charts.pie.destroy();
-            charts.pie = new Chart(document.getElementById('pieChart'), {
+            const ctxPie = document.getElementById('pieChart').getContext('2d');
+            if(chartInstances.pie) chartInstances.pie.destroy();
+            chartInstances.pie = new Chart(ctxPie, {
                 type: 'doughnut',
                 data: { labels: ['PM','BM'], datasets: [{ data:[pm,bm], backgroundColor:['#10b981','#ef4444'], borderWidth:0 }] },
                 options: { responsive:true, maintainAspectRatio:false, cutout:'70%', plugins:{legend:{position:'right', labels:{boxWidth:10}}} }
