@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" class="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Maintenance Online Dashboard</title>
+    <title>Maintenance Online Dashboard v1.4</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -12,95 +12,74 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
+    <!-- Tailwind Config for Dark Mode -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { slate: { 850: '#1e293b', 900: '#0f172a' } } } }
+        }
+    </script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Sarabun', sans-serif; -webkit-tap-highlight-color: transparent; transition: background-color 0.3s, color 0.3s; }
         
-        body { 
-            font-family: 'Sarabun', sans-serif; 
-            background-color: #f1f5f9; 
-            -webkit-tap-highlight-color: transparent;
-        }
+        .mobile-card { border-radius: 12px; padding: 16px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; transition: all 0.3s; }
+        .mobile-card-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; margin-bottom: 4px; border-bottom-width: 1px; }
+        .mobile-label { font-size: 11px; text-transform: uppercase; font-weight: 600; }
+        .mobile-value { font-size: 14px; font-weight: 500; }
         
-        /* Mobile Card Style */
-        .mobile-card {
-            background: white;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            border: 1px solid #e2e8f0;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .mobile-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #f1f5f9;
-            padding-bottom: 8px;
-            margin-bottom: 4px;
-        }
-
-        .mobile-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 600; }
-        .mobile-value { font-size: 14px; font-weight: 500; color: #334155; }
-
-        /* Animation */
         .fade-in { animation: fadeIn 0.5s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* Hide Scrollbar */
+        
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        /* Chevron Rotation */
+        
+        /* Chevron */
         .chevron { transition: transform 0.3s ease-in-out; }
+        .chevron.rotate-90 { transform: rotate(90deg); }
         .chevron.rotate-180 { transform: rotate(180deg); }
     </style>
 </head>
-<body class="text-slate-800 pb-20">
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-200 pb-20">
 
     <!-- HEADER -->
-    <nav class="bg-white border-b border-slate-200 sticky top-0 z-50 px-4 py-3 shadow-sm safe-area-inset-top">
+    <nav class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-50 px-4 py-3 shadow-sm safe-area-inset-top transition-colors duration-300">
         <div class="container mx-auto flex justify-between items-center">
             <div class="flex items-center gap-3">
-                <div class="bg-green-600 text-white p-2 rounded-lg shadow-md shadow-green-100">
+                <div class="bg-green-600 text-white p-2 rounded-lg shadow-md shadow-green-100 dark:shadow-none">
                     <i class="fab fa-google-drive text-lg"></i>
                 </div>
                 <div>
-                    <h1 class="text-lg font-bold tracking-tight text-slate-800 leading-tight">Maintenance</h1>
-                    <p class="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-                        <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Online (Google Sheet)
+                    <h1 class="text-lg font-bold tracking-tight text-slate-800 dark:text-white leading-tight">Maintenance</h1>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Online v1.4
                     </p>
                 </div>
             </div>
             
             <div class="flex items-center gap-2">
-                <div class="bg-slate-100 p-1 rounded-lg flex items-center border border-slate-200">
-                    <button onclick="switchView('desktop')" id="btn-desktop" class="p-1.5 rounded-md text-slate-400 hover:text-blue-600 transition-colors">
-                        <i class="fas fa-table"></i>
-                    </button>
-                    <button onclick="switchView('mobile')" id="btn-mobile" class="p-1.5 rounded-md text-slate-400 hover:text-blue-600 transition-colors">
-                        <i class="fas fa-th-list"></i>
-                    </button>
-                </div>
-                <button onclick="loadDataFromUrl()" class="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 transition-colors" title="รีโหลดข้อมูล">
-                    <i class="fas fa-sync-alt"></i>
+                <!-- Dark Mode Toggle -->
+                <button onclick="toggleDarkMode()" class="w-9 h-9 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-slate-600 dark:text-yellow-400">
+                    <i class="fas fa-moon dark:hidden"></i><i class="fas fa-sun hidden dark:block"></i>
                 </button>
+                
+                <div class="bg-slate-100 dark:bg-slate-700 p-1 rounded-lg flex items-center border border-slate-200 dark:border-slate-600">
+                    <button onclick="switchView('desktop')" id="btn-desktop" class="p-1.5 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"><i class="fas fa-table"></i></button>
+                    <button onclick="switchView('mobile')" id="btn-mobile" class="p-1.5 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"><i class="fas fa-th-list"></i></button>
+                </div>
+                <button onclick="loadDataFromUrl()" class="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-300 transition-colors" title="รีโหลดข้อมูล"><i class="fas fa-sync-alt"></i></button>
             </div>
         </div>
-
-        <!-- Year Selector -->
         <div class="container mx-auto mt-3 overflow-x-auto no-scrollbar pb-1">
             <div id="year-selector-container" class="flex gap-2 min-w-max px-1"></div>
         </div>
     </nav>
 
-    <!-- LOADING OVERLAY -->
-    <div id="loading-overlay" class="fixed inset-0 bg-white/90 z-[60] flex flex-col items-center justify-center backdrop-blur-sm hidden">
-        <div class="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-green-600 mb-4"></div>
-        <p class="text-slate-600 font-semibold animate-pulse text-sm">กำลังเชื่อมต่อ Google Sheets...</p>
+    <!-- LOADING -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white/90 dark:bg-slate-900/90 z-[60] flex flex-col items-center justify-center backdrop-blur-sm hidden">
+        <div class="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 dark:border-slate-700 border-t-green-600 mb-4"></div>
+        <p class="text-slate-600 dark:text-slate-300 font-semibold animate-pulse text-sm">กำลังเชื่อมต่อฐานข้อมูล...</p>
     </div>
 
     <!-- MAIN CONTENT -->
@@ -110,129 +89,121 @@
         <div id="dashboard-view" class="space-y-5 fade-in hidden">
             
             <!-- FILTER SECTION -->
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                <h3 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
+            <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+                <h3 class="font-bold text-slate-700 dark:text-slate-200 text-sm mb-3 flex items-center gap-2">
                     <i class="fas fa-filter text-slate-400"></i> ตัวกรองข้อมูล (Filters)
                 </h3>
                 <div class="flex flex-col md:flex-row gap-3">
                     <div class="flex gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar flex-1">
-                        <select id="locationFilter" onchange="filterLocationChanged()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[120px] focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                            <option value="All">ทุกสถานที่</option>
-                        </select>
-                        <select id="machineFilter" onchange="filterTable()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[120px] focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                            <option value="All">ทุกเครื่องจักร</option>
-                        </select>
-                        <select id="typeFilter" onchange="filterTable()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[100px] focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                            <option value="All">ทุกประเภท</option>
-                            <option value="PM">PM</option>
-                            <option value="BM">BM</option>
-                        </select>
+                        <select id="locationFilter" onchange="filterLocationChanged()" class="text-xs bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[120px] focus:ring-2 focus:ring-blue-500 cursor-pointer"><option value="All">ทุกสถานที่</option></select>
+                        <select id="machineFilter" onchange="filterTable()" class="text-xs bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[120px] focus:ring-2 focus:ring-blue-500 cursor-pointer"><option value="All">ทุกเครื่องจักร</option></select>
+                        <select id="typeFilter" onchange="filterTable()" class="text-xs bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[100px] focus:ring-2 focus:ring-blue-500 cursor-pointer"><option value="All">ทุกประเภท</option><option value="PM">PM</option><option value="BM">BM</option></select>
                     </div>
                     <div class="relative md:w-64">
                         <i class="fas fa-search absolute left-3 top-3 text-slate-400 text-xs"></i>
-                        <input type="text" id="searchBox" placeholder="ค้นหา (Issue, Remark)..." onkeyup="filterTable()" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2.5 outline-none shadow-sm focus:ring-2 focus:ring-blue-500">
+                        <input type="text" id="searchBox" placeholder="ค้นหา..." onkeyup="filterTable()" class="w-full text-xs bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-lg pl-9 pr-3 py-2.5 outline-none shadow-sm focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>
             </div>
 
             <!-- KPI Cards -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
-                    <div class="flex justify-between items-start mb-2"><span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">Budget</span><i class="fas fa-coins text-slate-300"></i></div>
-                    <h3 id="kpi-budget" class="text-lg md:text-2xl font-bold text-slate-700">฿0</h3>
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col justify-between transition-colors">
+                    <div class="flex justify-between items-start mb-2"><span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">Budget</span><i class="fas fa-coins text-slate-300 dark:text-slate-600"></i></div>
+                    <h3 id="kpi-budget" class="text-lg md:text-2xl font-bold text-slate-700 dark:text-slate-100">฿0</h3>
                 </div>
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col justify-between transition-colors">
                     <div class="flex justify-between items-start mb-2"><span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">Actual</span><i class="fas fa-receipt text-blue-300"></i></div>
-                    <h3 id="kpi-actual" class="text-lg md:text-2xl font-bold text-blue-600">฿0</h3>
+                    <h3 id="kpi-actual" class="text-lg md:text-2xl font-bold text-blue-600 dark:text-blue-400">฿0</h3>
                 </div>
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col justify-between transition-colors">
                     <div class="flex justify-between items-start mb-2"><span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">Variance</span><i class="fas fa-chart-line text-emerald-300"></i></div>
-                    <h3 id="kpi-variance" class="text-lg md:text-2xl font-bold text-emerald-600">฿0</h3>
+                    <h3 id="kpi-variance" class="text-lg md:text-2xl font-bold text-emerald-600 dark:text-emerald-400">฿0</h3>
                 </div>
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col justify-between transition-colors">
                     <div class="flex justify-between items-start mb-2"><span class="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">Jobs</span><i class="fas fa-tools text-purple-300"></i></div>
-                    <h3 id="kpi-jobs" class="text-lg md:text-2xl font-bold text-purple-600">0</h3>
+                    <h3 id="kpi-jobs" class="text-lg md:text-2xl font-bold text-purple-600 dark:text-purple-400">0</h3>
                 </div>
             </div>
 
-            <!-- Main Charts (Moved Up) -->
+            <!-- Main Charts (Top) -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-                <div class="lg:col-span-2 bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                    <h3 class="font-bold text-slate-700 mb-4 text-xs md:text-sm flex items-center gap-2 uppercase tracking-wide">
+                <div class="lg:col-span-2 bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+                    <h3 id="chart-title-trend" class="font-bold text-slate-700 dark:text-slate-200 mb-4 text-xs md:text-sm flex items-center gap-2 uppercase tracking-wide">
                         <i class="far fa-chart-bar text-blue-500"></i> Monthly Cost Trend
                     </h3>
                     <div class="h-48 md:h-72 w-full relative"><canvas id="mainChart"></canvas></div>
                 </div>
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                    <h3 class="font-bold text-slate-700 mb-4 text-xs md:text-sm flex items-center gap-2 uppercase tracking-wide">
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+                    <h3 class="font-bold text-slate-700 dark:text-slate-200 mb-4 text-xs md:text-sm flex items-center gap-2 uppercase tracking-wide">
                         <i class="fas fa-chart-pie text-purple-500"></i> Job Type
                     </h3>
                     <div class="h-40 md:h-64 flex justify-center relative"><canvas id="pieChart"></canvas></div>
                 </div>
             </div>
 
-            <!-- Analysis Charts (Moved Down) -->
+            <!-- Analysis Charts (Bottom) -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- 1. Machine Cost Ranking -->
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                    <h3 class="font-bold text-slate-700 text-sm mb-4 flex items-center gap-2">
-                        <i class="fas fa-server text-orange-500"></i> ค่าใช้จ่ายแยกตามเครื่อง (Machine Cost)
+                <!-- Machine Cost -->
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+                    <h3 class="font-bold text-slate-700 dark:text-slate-200 text-sm mb-4 flex items-center gap-2">
+                        <i class="fas fa-server text-orange-500"></i> Machine Cost Ranking
                     </h3>
-                    <div class="h-64 w-full relative">
-                        <canvas id="machineCostChart"></canvas>
-                    </div>
+                    <div class="h-64 w-full relative"><canvas id="machineCostChart"></canvas></div>
                 </div>
 
-                <!-- 2. Issue Frequency -->
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-slate-700 text-sm flex items-center gap-2">
-                            <i class="fas fa-exclamation-circle text-red-500"></i> อาการเสียที่พบบ่อย (Top Issues)
+                <!-- Top Issues (Combo Chart: Cost & Count) -->
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+                    <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                        <h3 class="font-bold text-slate-700 dark:text-slate-200 text-sm flex items-center gap-2">
+                            <i class="fas fa-exclamation-circle text-red-500"></i> Top Issues Impact
                         </h3>
-                        <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-1 rounded">*Excl. PM</span>
+                        <!-- Toggle Button -->
+                        <div class="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1 text-[10px]">
+                            <button onclick="updateIssueMode('combined')" id="btn-issue-combined" class="px-3 py-1 rounded-md transition-all font-bold bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm">Mixed</button>
+                            <button onclick="updateIssueMode('cost')" id="btn-issue-cost" class="px-3 py-1 rounded-md transition-all text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">Cost</button>
+                            <button onclick="updateIssueMode('count')" id="btn-issue-count" class="px-3 py-1 rounded-md transition-all text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">Count</button>
+                        </div>
                     </div>
-                    <div class="h-64 w-full relative">
-                        <canvas id="issueFreqChart"></canvas>
-                    </div>
+                    <div class="h-64 w-full relative"><canvas id="issueFreqChart"></canvas></div>
+                    <p class="text-[10px] text-slate-400 text-center mt-2 flex justify-center gap-3">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500"></span> Cost (฿)</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Count (ครั้ง)</span>
+                    </p>
                 </div>
             </div>
 
-            <!-- Collapsible Data List -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                <!-- Header (Click to Toggle) -->
-                <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition-colors" onclick="toggleLogs()">
-                    <div class="flex items-center gap-2">
-                        <i id="logs-chevron" class="fas fa-chevron-right text-slate-400 transition-transform duration-300"></i>
-                        <h3 class="font-bold text-slate-700 text-sm">Transaction Logs</h3>
-                    </div>
+            <!-- Data List (Collapsible) -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden transition-colors">
+                <div class="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" onclick="toggleLogs()">
+                    <h3 class="font-bold text-slate-700 dark:text-slate-200 text-sm flex items-center gap-2">
+                        <i id="logs-chevron" class="fas fa-chevron-right text-slate-400 transition-transform duration-300"></i> Transaction Logs
+                    </h3>
                     <span id="record-count" class="text-xs text-slate-400">Loading...</span>
                 </div>
 
-                <!-- Content (Hidden by default) -->
                 <div id="logs-content" class="hidden transition-all duration-300 ease-in-out">
-                    <!-- Desktop Table -->
                     <div id="desktop-table-view" class="overflow-x-auto hidden">
-                        <table class="w-full text-sm text-left">
-                            <thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0 shadow-sm">
+                        <table class="w-full text-sm text-left text-slate-600 dark:text-slate-300">
+                            <thead class="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-700 sticky top-0 shadow-sm">
                                 <tr>
-                                    <th class="px-6 py-3 bg-slate-50">Date</th>
-                                    <th class="px-6 py-3 bg-slate-50">Machine</th>
-                                    <th class="px-6 py-3 bg-slate-50">Type</th>
-                                    <th class="px-6 py-3 bg-slate-50">Details</th>
-                                    <th class="px-6 py-3 bg-slate-50 text-right">Budget</th>
-                                    <th class="px-6 py-3 bg-slate-50 text-right">Actual</th>
-                                    <th class="px-6 py-3 bg-slate-50 text-right">Var</th>
+                                    <th class="px-6 py-3">Date</th>
+                                    <th class="px-6 py-3">Machine</th>
+                                    <th class="px-6 py-3">Type</th>
+                                    <th class="px-6 py-3">Details</th>
+                                    <th class="px-6 py-3 text-right">Budget</th>
+                                    <th class="px-6 py-3 text-right">Actual</th>
+                                    <th class="px-6 py-3 text-right">Var</th>
                                 </tr>
                             </thead>
-                            <tbody id="tableBody" class="divide-y divide-slate-100 bg-white"></tbody>
+                            <tbody id="tableBody" class="divide-y divide-slate-100 dark:divide-slate-700 bg-white dark:bg-slate-800"></tbody>
                         </table>
                     </div>
-
-                    <!-- Mobile Cards -->
-                    <div id="mobile-card-view" class="p-4 space-y-3 bg-slate-50 hidden"></div>
-                    
-                    <div class="p-3 bg-white border-t border-slate-100 text-center">
-                        <button onclick="showAllData()" class="text-xs text-blue-500 font-bold hover:underline">แสดงข้อมูลทั้งหมด</button>
+                    <div id="mobile-card-view" class="p-4 space-y-3 bg-slate-50 dark:bg-slate-900/50 hidden"></div>
+                    <div class="p-4 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 text-center">
+                        <button onclick="loadMoreData()" id="btn-load-more" class="text-sm bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 px-6 py-2 rounded-full font-medium transition-colors hidden">
+                            โหลดเพิ่มเติม (+50)
+                        </button>
                     </div>
                 </div>
             </div>
@@ -240,10 +211,10 @@
         
         <!-- Error State -->
         <div id="error-state" class="hidden text-center py-20 px-6">
-            <div class="bg-red-50 text-red-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fas fa-exclamation-triangle"></i></div>
-            <h3 class="text-lg font-bold text-slate-700">ไม่สามารถดึงข้อมูลได้</h3>
-            <p class="text-sm text-slate-500 mt-2">อาจเป็นเพราะปัญหา CORS หรือลิงก์ไม่ถูกต้อง<br>ลองรีโหลดหน้าเว็บ หรือตรวจสอบลิงก์ Google Sheet</p>
-            <button onclick="location.reload()" class="mt-6 bg-slate-800 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg">ลองใหม่</button>
+            <div class="bg-red-50 dark:bg-red-900/20 text-red-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fas fa-exclamation-triangle"></i></div>
+            <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200">ไม่สามารถดึงข้อมูลได้</h3>
+            <p class="text-sm text-slate-500 mt-2">อาจเป็นเพราะปัญหา CORS หรือลิงก์ไม่ถูกต้อง<br>ลองรีโหลดหน้าเว็บ</p>
+            <button onclick="location.reload()" class="mt-6 bg-slate-800 dark:bg-slate-700 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg">ลองใหม่</button>
         </div>
 
     </main>
@@ -256,9 +227,11 @@
         let currentYear = null;
         let chartInstances = {}; 
         let currentView = 'mobile';
-        let showLimit = 500;
+        let showLimit = 50; 
+        let currentFilteredData = [];
+        let issueChartMode = 'combined'; // Default to mixed view
+        let isDarkMode = false;
 
-        // --- HELPER FUNCTION: Safe Float Parsing ---
         function safeFloat(val) {
             if (val === undefined || val === null || val === '') return 0;
             const cleanVal = String(val).replace(/,/g, '').trim();
@@ -266,51 +239,50 @@
             return isNaN(num) ? 0 : num; 
         }
 
-        // --- TOGGLE LOGS FUNCTION ---
         function toggleLogs() {
             const content = document.getElementById('logs-content');
             const chevron = document.getElementById('logs-chevron');
-            
-            if (content.classList.contains('hidden')) {
-                content.classList.remove('hidden');
-                chevron.classList.add('rotate-90');
-            } else {
-                content.classList.add('hidden');
-                chevron.classList.remove('rotate-90');
-            }
+            if (content.classList.contains('hidden')) { content.classList.remove('hidden'); chevron.classList.add('rotate-90'); } 
+            else { content.classList.add('hidden'); chevron.classList.remove('rotate-90'); }
         }
 
-        // --- INIT ---
+        function toggleCard(id) {
+            const content = document.getElementById(`content-${id}`);
+            const chevron = document.getElementById(`chevron-${id}`);
+            if (content.classList.contains('hidden')) { content.classList.remove('hidden'); chevron.classList.add('rotate-180'); }
+            else { content.classList.add('hidden'); chevron.classList.remove('rotate-180'); }
+        }
+
         window.onload = () => {
-            if (window.innerWidth >= 768) switchView('desktop');
-            else switchView('mobile');
+            if (window.innerWidth >= 768) switchView('desktop'); else switchView('mobile');
+            if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) toggleDarkMode(true);
             loadDataFromUrl(DEFAULT_URL);
         };
 
-        function showAllData() {
-            showLimit = 10000;
-            filterTable();
+        function toggleDarkMode(forceDark = null) {
+            const html = document.documentElement;
+            if (forceDark === true || (forceDark === null && !html.classList.contains('dark'))) {
+                html.classList.add('dark'); localStorage.setItem('theme', 'dark'); isDarkMode = true;
+            } else {
+                html.classList.remove('dark'); localStorage.setItem('theme', 'light'); isDarkMode = false;
+            }
+            if (rawData.length > 0) renderDashboard();
         }
 
-        // --- DATA LOADING ---
+        function loadMoreData() { showLimit += 50; renderLists(currentFilteredData); }
+
         function loadDataFromUrl(url = DEFAULT_URL) {
             document.getElementById('loading-overlay').classList.remove('hidden');
             document.getElementById('error-state').classList.add('hidden');
-            
             const fetchUrl = url + '&t=' + new Date().getTime();
-
             Papa.parse(fetchUrl, {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
+                download: true, header: true, skipEmptyLines: true,
                 complete: (results) => {
                     if (results.data && results.data.length > 0) {
                         processData(results.data);
                         initDashboard();
                         document.getElementById('dashboard-view').classList.remove('hidden');
-                    } else {
-                        document.getElementById('error-state').classList.remove('hidden');
-                    }
+                    } else { document.getElementById('error-state').classList.remove('hidden'); }
                     document.getElementById('loading-overlay').classList.add('hidden');
                 },
                 error: (err) => {
@@ -326,34 +298,23 @@
             json.forEach(row => {
                 let dateVal = row['Date'] || row['date'] || row['วันที่'];
                 if (!dateVal) return;
-
                 let dateObj;
-                if (typeof dateVal === 'number') {
-                    dateObj = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
-                } else {
+                if (typeof dateVal === 'number') { dateObj = new Date(Math.round((dateVal - 25569) * 86400 * 1000)); } 
+                else {
                     const s = String(dateVal).trim();
-                    if (s.includes('-')) {
-                        dateObj = new Date(s);
-                    } else if (s.includes('/')) {
+                    if (s.includes('-')) dateObj = new Date(s);
+                    else if (s.includes('/')) {
                         const p = s.split('/');
-                        if(p[0].length <= 2 && p[1].length <= 2 && p[2].length == 4) {
-                             dateObj = new Date(p[2], p[1]-1, p[0]);
-                        } else {
-                             dateObj = new Date(s);
-                        }
-                    } else {
-                        dateObj = new Date(s);
-                    }
+                        if(p[0].length <= 2 && p[1].length <= 2 && p[2].length == 4) dateObj = new Date(p[2], p[1]-1, p[0]);
+                        else dateObj = new Date(s);
+                    } else dateObj = new Date(s);
                 }
-
                 if (!dateObj || isNaN(dateObj.getTime())) return;
 
                 const budgetVal = safeFloat(row['Budget']);
                 const actualVal = safeFloat(row['Actual'] || row['Actual_Cost']);
                 let varianceVal = safeFloat(row['Variance']);
-                if (varianceVal === 0 && (budgetVal !== 0 || actualVal !== 0)) {
-                    varianceVal = budgetVal - actualVal;
-                }
+                if (varianceVal === 0 && (budgetVal !== 0 || actualVal !== 0)) varianceVal = budgetVal - actualVal;
 
                 let jobType = row['Job_Type'] || row['Type'] || 'BM';
                 jobType = jobType.trim().toUpperCase();
@@ -368,19 +329,14 @@
                     type: jobType,
                     issue: row['Issue']||row['Description']||'-',
                     action: row['Action_Taken']||row['Action']||'-',
-                    budget: budgetVal,
-                    actual: actualVal,
-                    variance: varianceVal,
-                    remark: row['Remark']||''
+                    budget: budgetVal, actual: actualVal, variance: varianceVal, remark: row['Remark']||''
                 });
             });
         }
 
-        // --- DASHBOARD LOGIC ---
         function initDashboard() {
             const uniqueYears = new Set(rawData.map(d => d.year));
             yearsList = Array.from(uniqueYears).sort((a, b) => a - b);
-
             locMachineMap = {};
             const uniqueLocations = new Set();
             rawData.forEach(row => {
@@ -390,22 +346,27 @@
                     locMachineMap[row.loc].add(row.id);
                 }
             });
-
             const locSelect = document.getElementById('locationFilter');
             locSelect.innerHTML = '<option value="All">ทุกสถานที่</option>';
             Array.from(uniqueLocations).sort().forEach(l => {
-                const opt = document.createElement('option');
-                opt.value = l; opt.innerText = l; locSelect.appendChild(opt);
+                const opt = document.createElement('option'); opt.value = l; opt.innerText = l; locSelect.appendChild(opt);
             });
             updateMachineFilter('All');
-
             const container = document.getElementById('year-selector-container');
             container.innerHTML = '';
+            
+            const btnAll = document.createElement('button');
+            btnAll.id = 'btn-all';
+            btnAll.className = "px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-300 shadow-sm mr-2 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors";
+            btnAll.innerText = 'ALL (ภาพรวม)';
+            btnAll.onclick = () => switchYear('all');
+            container.appendChild(btnAll);
+
             if (yearsList.length > 0) {
                 yearsList.forEach(year => {
                     const btn = document.createElement('button');
                     btn.id = `btn-${year}`;
-                    btn.className = "px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap bg-white border border-slate-200 text-slate-500 shadow-sm mr-2 hover:bg-slate-50 transition-colors";
+                    btn.className = "px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-300 shadow-sm mr-2 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors";
                     btn.innerText = year;
                     btn.onclick = () => switchYear(year);
                     container.appendChild(btn);
@@ -416,18 +377,17 @@
 
         function switchView(mode) {
             currentView = mode;
-            const dtBtn = document.getElementById('btn-desktop');
-            const mbBtn = document.getElementById('btn-mobile');
-            const dView = document.getElementById('desktop-table-view');
-            const mView = document.getElementById('mobile-card-view');
-
+            const dtBtn = document.getElementById('btn-desktop'), mbBtn = document.getElementById('btn-mobile');
+            const dView = document.getElementById('desktop-table-view'), mView = document.getElementById('mobile-card-view');
+            const activeClass = ['text-blue-600', 'bg-white', 'shadow-sm', 'dark:bg-slate-600', 'dark:text-blue-400'];
+            const inactiveClass = ['text-slate-400'];
             if (mode === 'desktop') {
-                dtBtn.classList.add('text-blue-600','bg-white','shadow-sm'); dtBtn.classList.remove('text-slate-400');
-                mbBtn.classList.add('text-slate-400'); mbBtn.classList.remove('text-blue-600','bg-white','shadow-sm');
+                dtBtn.classList.add(...activeClass); dtBtn.classList.remove(...inactiveClass);
+                mbBtn.classList.add(...inactiveClass); mbBtn.classList.remove(...activeClass);
                 dView.classList.remove('hidden'); mView.classList.add('hidden');
             } else {
-                mbBtn.classList.add('text-blue-600','bg-white','shadow-sm'); mbBtn.classList.remove('text-slate-400');
-                dtBtn.classList.add('text-slate-400'); dtBtn.classList.remove('text-blue-600','bg-white','shadow-sm');
+                mbBtn.classList.add(...activeClass); mbBtn.classList.remove(...inactiveClass);
+                dtBtn.classList.add(...inactiveClass); dtBtn.classList.remove(...activeClass);
                 mView.classList.remove('hidden'); dView.classList.add('hidden');
             }
             filterTable();
@@ -435,12 +395,12 @@
 
         function switchYear(year) {
             currentYear = year;
-            yearsList.forEach(y => {
-                const btn = document.getElementById(`btn-${y}`);
-                if (btn) btn.className = y === year 
-                    ? "px-4 py-1.5 rounded-full text-sm font-bold bg-green-600 text-white shadow-md transform scale-105 transition-all mr-2 border-transparent"
-                    : "px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-slate-200 text-slate-500 shadow-sm hover:bg-slate-50 mr-2";
-            });
+            const allBtns = document.querySelectorAll('#year-selector-container button');
+            allBtns.forEach(btn => btn.className = "px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-300 shadow-sm mr-2 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors");
+            const activeBtn = document.getElementById(year === 'all' ? 'btn-all' : `btn-${year}`);
+            if(activeBtn) activeBtn.className = "px-4 py-1.5 rounded-full text-sm font-bold bg-green-600 text-white shadow-md transform scale-105 transition-all mr-2 border-transparent";
+            const chartTitle = document.getElementById('chart-title-trend');
+            chartTitle.innerHTML = year === 'all' ? '<i class="far fa-chart-bar text-blue-500"></i> Yearly Cost Trend' : '<i class="far fa-chart-bar text-blue-500"></i> Monthly Cost Trend';
             renderDashboard();
         }
 
@@ -455,7 +415,6 @@
             let machines = new Set();
             if(loc === 'All') rawData.forEach(r => { if(r.id) machines.add(r.id); });
             else if(locMachineMap[loc]) machines = locMachineMap[loc];
-            
             Array.from(machines).sort().forEach(m => {
                 const opt = document.createElement('option');
                 opt.value = m; opt.innerText = m; select.appendChild(opt);
@@ -463,7 +422,10 @@
             select.value = 'All';
         }
 
-        function filterTable() { renderDashboard(); }
+        function filterTable() { 
+            showLimit = 50; 
+            renderDashboard(); 
+        }
 
         function renderDashboard() {
             const locVal = document.getElementById('locationFilter').value;
@@ -471,104 +433,141 @@
             const typeVal = document.getElementById('typeFilter').value;
             const searchVal = document.getElementById('searchBox').value.toLowerCase();
 
-            const filtered = rawData.filter(d => {
-                return d.year === currentYear &&
+            currentFilteredData = rawData.filter(d => {
+                const matchYear = currentYear === 'all' ? true : d.year === currentYear;
+                return matchYear &&
                        (locVal === 'All' || d.loc === locVal) &&
                        (macVal === 'All' || d.id === macVal) &&
                        (typeVal === 'All' || d.type === typeVal) && 
                        ((d.id.toLowerCase().includes(searchVal)) || (d.issue.toLowerCase().includes(searchVal)));
             });
 
-            // KPIs
-            const budget = filtered.reduce((s,i)=>s+i.budget,0);
-            const actual = filtered.reduce((s,i)=>s+i.actual,0);
-            const variance = filtered.reduce((s,i)=>s+i.variance,0);
+            const budget = currentFilteredData.reduce((s,i)=>s+i.budget,0);
+            const actual = currentFilteredData.reduce((s,i)=>s+i.actual,0);
+            const variance = currentFilteredData.reduce((s,i)=>s+i.variance,0);
 
             document.getElementById('kpi-budget').innerText = formatMoney(budget);
             document.getElementById('kpi-actual').innerText = formatMoney(actual);
             const vEl = document.getElementById('kpi-variance');
             vEl.innerText = (variance>0?'+':'') + formatMoney(variance);
-            vEl.className = `text-lg md:text-2xl font-bold ${variance>=0?'text-emerald-600':'text-red-500'}`;
-            document.getElementById('kpi-jobs').innerText = filtered.length;
-            document.getElementById('record-count').innerText = `${filtered.length} รายการ`;
+            vEl.className = `text-lg md:text-2xl font-bold ${variance>=0?'text-emerald-600 dark:text-emerald-400':'text-red-500 dark:text-red-400'}`;
+            document.getElementById('kpi-jobs').innerText = currentFilteredData.length;
+            document.getElementById('record-count').innerText = `${currentFilteredData.length} รายการ`;
 
-            renderCharts(filtered);
-            renderMachineCostChart(filtered);
-            renderIssueChart(filtered);
-            renderLists(filtered);
+            renderCharts(currentFilteredData);
+            renderMachineCostChart(currentFilteredData);
+            renderIssueChart(currentFilteredData);
+            renderLists(currentFilteredData);
         }
 
         function renderLists(data) {
             const sorted = data.sort((a,b)=>b.rawDate-a.rawDate).slice(0, showLimit); 
             
-            // Desktop Table
+            const btnLoadMore = document.getElementById('btn-load-more');
+            if (data.length > showLimit) {
+                btnLoadMore.classList.remove('hidden');
+                btnLoadMore.innerText = `โหลดเพิ่มเติม (${data.length - showLimit} รายการ)`;
+            } else {
+                btnLoadMore.classList.add('hidden');
+            }
+
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
             sorted.forEach(row => {
                 const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-50 border-b border-slate-50 transition-colors";
-                const varColor = row.variance >= 0 ? 'text-emerald-600' : 'text-red-600';
+                tr.className = "hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-50 dark:border-slate-700 transition-colors";
+                const varColor = row.variance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
                 tr.innerHTML = `
-                    <td class="px-6 py-3 whitespace-nowrap text-slate-500">${row.dateStr}</td>
-                    <td class="px-6 py-3 font-bold text-slate-700">${row.id}</td>
-                    <td class="px-6 py-3"><span class="px-2 py-1 rounded-md text-xs font-bold ${row.type==='PM'?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}">${row.type}</span></td>
-                    <td class="px-6 py-3"><div class="font-medium text-slate-700">${row.issue}</div><div class="text-xs text-slate-400">${row.action}</div></td>
-                    <td class="px-6 py-3 text-right text-slate-400">${formatMoney(row.budget)}</td>
-                    <td class="px-6 py-3 text-right font-bold text-slate-700">${formatMoney(row.actual)}</td>
-                    <td class="px-6 py-3 text-right font-bold text-xs ${varColor}">${formatMoney(row.variance)}</td>
+                    <td class="px-6 py-3 whitespace-nowrap text-slate-500 dark:text-slate-400">${row.dateStr}</td>
+                    <td class="px-6 py-3 font-bold text-slate-700 dark:text-slate-200">${row.id}</td>
+                    <td class="px-6 py-3"><span class="px-2 py-1 rounded-md text-xs font-bold ${row.type==='PM'?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300':'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'}">${row.type}</span></td>
+                    <td class="px-6 py-3"><div class="font-medium text-slate-700 dark:text-slate-200">${row.issue}</div><div class="text-xs text-slate-400">${row.action}</div></td>
+                    <td class="px-6 py-3 text-right text-slate-400 font-mono">${formatMoney(row.budget)}</td>
+                    <td class="px-6 py-3 text-right font-bold text-slate-700 dark:text-slate-200 font-mono">${formatMoney(row.actual)}</td>
+                    <td class="px-6 py-3 text-right font-bold text-xs ${varColor} font-mono">${formatMoney(row.variance)}</td>
                 `;
                 tbody.appendChild(tr);
             });
 
-            // Mobile Cards
             const cardContainer = document.getElementById('mobile-card-view');
             cardContainer.innerHTML = '';
-            sorted.forEach(row => {
-                const varColor = row.variance >= 0 ? 'text-emerald-600' : 'text-red-600';
-                const typeColor = row.type === 'PM' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700';
+            sorted.forEach((row, index) => {
+                const varColor = row.variance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
+                const typeColor = row.type === 'PM' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
                 cardContainer.innerHTML += `
-                    <div class="mobile-card border-l-4 ${row.type==='PM'?'border-l-emerald-500':'border-l-red-500'}">
-                        <div class="mobile-card-header">
+                    <div class="mobile-card bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 border-l-4 ${row.type==='PM'?'border-l-emerald-500':'border-l-red-500'}" onclick="toggleCard(${index})">
+                        <div class="mobile-card-header border-slate-100 dark:border-slate-700">
                             <div class="flex items-center gap-2">
                                 <span class="text-[10px] font-bold ${typeColor} px-2 py-0.5 rounded">${row.type}</span>
-                                <span class="font-bold text-slate-700 text-sm">${row.id}</span>
+                                <span class="font-bold text-slate-700 dark:text-slate-200 text-sm">${row.id}</span>
                             </div>
                             <span class="text-xs text-slate-400">${row.dateStr}</span>
                         </div>
-                        <div class="mb-3">
-                            <div class="text-sm font-medium text-slate-700">${row.issue}</div>
-                            <div class="text-xs text-slate-500 truncate">${row.action}</div>
+                        <div class="mb-1 flex justify-between items-center">
+                             <div class="text-sm font-medium text-slate-700 dark:text-slate-200 truncate w-3/4">${row.issue}</div>
+                             <div class="text-sm font-bold text-slate-700 dark:text-slate-200">${formatMoney(row.actual)}</div>
                         </div>
-                        <div class="grid grid-cols-3 gap-1 pt-2 border-t border-slate-50">
-                            <div><div class="mobile-label">Budget</div><div class="mobile-value text-slate-400">${formatMoney(row.budget)}</div></div>
-                            <div class="text-right"><div class="mobile-label">Actual</div><div class="mobile-value text-slate-700 font-bold">${formatMoney(row.actual)}</div></div>
-                            <div class="text-right"><div class="mobile-label">Var</div><div class="mobile-value ${varColor} font-bold">${(row.variance>0?'+':'')+formatMoney(row.variance)}</div></div>
+                        <div class="text-xs text-slate-400 mb-2 flex justify-between">
+                             <span>แตะเพื่อดูรายละเอียด</span>
+                             <i id="chevron-${index}" class="fas fa-chevron-down text-slate-300 transition-transform"></i>
+                        </div>
+                        <div id="content-${index}" class="hidden pt-2 border-t border-slate-100 dark:border-slate-700 space-y-2">
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div><span class="text-slate-400">Action:</span> <span class="text-slate-600 dark:text-slate-300">${row.action}</span></div>
+                                <div><span class="text-slate-400">Loc:</span> <span class="text-slate-600 dark:text-slate-300">${row.loc}</span></div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-1 bg-slate-50 dark:bg-slate-900/50 p-2 rounded">
+                                <div class="text-center"><div class="mobile-label">Budget</div><div class="mobile-value text-slate-400">${formatMoney(row.budget)}</div></div>
+                                <div class="text-center border-l border-slate-200 dark:border-slate-700"><div class="mobile-label">Actual</div><div class="mobile-value text-slate-700 dark:text-slate-200 font-bold">${formatMoney(row.actual)}</div></div>
+                                <div class="text-center border-l border-slate-200 dark:border-slate-700"><div class="mobile-label">Var</div><div class="mobile-value ${varColor} font-bold">${(row.variance>0?'+':'')+formatMoney(row.variance)}</div></div>
+                            </div>
+                            <div class="text-xs text-slate-400 italic">Remark: ${row.remark || '-'}</div>
                         </div>
                     </div>`;
             });
         }
 
-        // --- CHARTS ---
         function renderCharts(data) {
-            const mActual = new Array(12).fill(0);
-            const mBudget = new Array(12).fill(0);
-            let pm = 0, bm = 0;
+            let labels, mBud, mAct;
+            const gridColor = isDarkMode ? '#334155' : '#e2e8f0';
+            const textColor = isDarkMode ? '#94a3b8' : '#64748b';
 
-            data.forEach(d => {
-                mActual[d.month] += d.actual;
-                mBudget[d.month] += d.budget;
-                if (d.type === 'PM') pm++; else bm++;
-            });
+            if (currentYear === 'all') {
+                labels = yearsList.map(String);
+                mBud = new Array(yearsList.length).fill(0);
+                mAct = new Array(yearsList.length).fill(0);
+                data.forEach(d => {
+                    const idx = yearsList.indexOf(d.year);
+                    if(idx > -1) { mBud[idx] += d.budget; mAct[idx] += d.actual; }
+                });
+            } else {
+                labels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                mBud = new Array(12).fill(0);
+                mAct = new Array(12).fill(0);
+                data.forEach(d => { mBud[d.month] += d.budget; mAct[d.month] += d.actual; });
+            }
+
+            let pm = 0, bm = 0;
+            data.forEach(d => d.type === 'PM' ? pm++ : bm++);
 
             const ctxMain = document.getElementById('mainChart').getContext('2d');
             if(chartInstances.main) chartInstances.main.destroy();
             chartInstances.main = new Chart(ctxMain, {
                 type: 'bar',
                 data: {
-                    labels: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
-                    datasets: [{ label:'Bud', data:mBudget, backgroundColor:'#cbd5e1', borderRadius:4 }, { label:'Act', data:mActual, backgroundColor:'#3b82f6', borderRadius:4 }]
+                    labels: labels,
+                    datasets: [{ label:'Bud', data:mBud, backgroundColor:'#cbd5e1', borderRadius:4 }, { label:'Act', data:mAct, backgroundColor:'#3b82f6', borderRadius:4 }]
                 },
-                options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top'}} }
+                options: { 
+                    responsive:true, maintainAspectRatio:false, 
+                    plugins:{
+                        legend:{position:'top', labels:{color: textColor}}
+                    },
+                    scales: {
+                        x: { grid: {display:false}, ticks: {color: textColor} },
+                        y: { grid: {color: gridColor}, ticks: {color: textColor} }
+                    }
+                }
             });
 
             const ctxPie = document.getElementById('pieChart').getContext('2d');
@@ -576,7 +575,12 @@
             chartInstances.pie = new Chart(ctxPie, {
                 type: 'doughnut',
                 data: { labels: ['PM','BM'], datasets: [{ data:[pm,bm], backgroundColor:['#10b981','#ef4444'], borderWidth:0 }] },
-                options: { responsive:true, maintainAspectRatio:false, cutout:'70%', plugins:{legend:{position:'right', labels:{boxWidth:10}}} }
+                options: { 
+                    responsive:true, maintainAspectRatio:false, cutout:'70%', 
+                    plugins:{
+                        legend:{position:'right', labels:{boxWidth:10, color: textColor}}
+                    } 
+                }
             });
         }
 
@@ -589,52 +593,120 @@
             });
             const sortedKeys = Object.keys(aggregated).sort((a,b)=>aggregated[b]-aggregated[a]).slice(0, 10);
             const values = sortedKeys.map(k=>aggregated[k]);
+            const textColor = isDarkMode ? '#94a3b8' : '#64748b';
 
             const ctx = document.getElementById('machineCostChart').getContext('2d');
             if(chartInstances.machineCost) chartInstances.machineCost.destroy();
             chartInstances.machineCost = new Chart(ctx, {
                 type: 'bar',
-                data: {
-                    labels: sortedKeys,
-                    datasets: [{ label:'Cost', data:values, backgroundColor:'#f97316', borderRadius:4 }]
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { x: { grid: { display:false } }, y: { grid: { display:false } } }
-                }
+                data: { labels: sortedKeys, datasets: [{ label:'Cost', data:values, backgroundColor:'#f97316', borderRadius:4 }] },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display:false }, ticks: {color: textColor} }, y: { grid: { display:false }, ticks: {color: textColor} } } }
             });
         }
 
+        function updateIssueMode(mode) {
+            issueChartMode = mode;
+            document.getElementById('btn-issue-combined').className = mode === 'combined' ? "px-3 py-1 rounded-md transition-all font-bold bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 shadow-sm" : "px-3 py-1 rounded-md transition-all text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200";
+            document.getElementById('btn-issue-cost').className = mode === 'cost' ? "px-3 py-1 rounded-md transition-all font-bold bg-white dark:bg-slate-600 text-red-600 dark:text-red-400 shadow-sm" : "px-3 py-1 rounded-md transition-all text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200";
+            document.getElementById('btn-issue-count').className = mode === 'count' ? "px-3 py-1 rounded-md transition-all font-bold bg-white dark:bg-slate-600 text-red-600 dark:text-red-400 shadow-sm" : "px-3 py-1 rounded-md transition-all text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200";
+            renderIssueChart(currentFilteredData);
+        }
+
         function renderIssueChart(data) {
+            const ctx = document.getElementById('issueFreqChart').getContext('2d');
+            if(chartInstances.issueFreq) chartInstances.issueFreq.destroy();
+            
+            const textColor = isDarkMode ? '#94a3b8' : '#64748b';
+            const gridColor = isDarkMode ? '#334155' : '#e2e8f0';
+
             const aggregated = {};
             data.forEach(d => {
                 if(!d.issue || d.issue==='-') return;
-                // Exclude Monthly Maintenance
                 if(d.issue.toLowerCase().includes("monthly maintenance")) return;
                 
-                if(!aggregated[d.issue]) aggregated[d.issue] = 0;
-                aggregated[d.issue]++;
+                if(!aggregated[d.issue]) aggregated[d.issue] = { cost: 0, count: 0 };
+                aggregated[d.issue].cost += d.actual;
+                aggregated[d.issue].count++;
             });
-            const sortedKeys = Object.keys(aggregated).sort((a,b)=>aggregated[b]-aggregated[a]).slice(0, 5);
-            const values = sortedKeys.map(k=>aggregated[k]);
 
-            const ctx = document.getElementById('issueFreqChart').getContext('2d');
-            if(chartInstances.issueFreq) chartInstances.issueFreq.destroy();
-            chartInstances.issueFreq = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: sortedKeys.map(k => k.length > 20 ? k.substring(0,20)+'...' : k),
-                    datasets: [{ label:'Count', data:values, backgroundColor:'#ef4444', borderRadius:4 }]
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { x: { grid: { display:false } }, y: { grid: { display:false } } }
-                }
-            });
+            // Sort logic based on mode (default to Cost desc for combined)
+            const sortKey = issueChartMode === 'count' ? 'count' : 'cost';
+            const sortedKeys = Object.keys(aggregated).sort((a,b) => aggregated[b][sortKey] - aggregated[a][sortKey]).slice(0, 10);
+
+            if (issueChartMode === 'combined') {
+                const costs = sortedKeys.map(k => aggregated[k].cost);
+                const counts = sortedKeys.map(k => aggregated[k].count);
+
+                chartInstances.issueFreq = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: sortedKeys.map(k => k.length > 20 ? k.substring(0,20)+'...' : k),
+                        datasets: [
+                            {
+                                label: 'Cost (฿)',
+                                data: costs,
+                                backgroundColor: '#ef4444',
+                                borderRadius: 4,
+                                order: 2,
+                                yAxisID: 'y'
+                            },
+                            {
+                                label: 'Count (ครั้ง)',
+                                data: counts,
+                                type: 'line',
+                                borderColor: '#3b82f6',
+                                borderWidth: 2,
+                                pointBackgroundColor: '#3b82f6',
+                                order: 1,
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        plugins: {
+                            legend: { display: true, labels: { color: textColor, boxWidth: 10 } }
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: textColor } },
+                            y: { 
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                grid: { color: gridColor },
+                                ticks: { color: textColor }
+                            },
+                            y1: {
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                grid: { display: false },
+                                ticks: { color: textColor }
+                            }
+                        }
+                    }
+                });
+            } else {
+                const values = sortedKeys.map(k => issueChartMode === 'cost' ? aggregated[k].cost : aggregated[k].count);
+                chartInstances.issueFreq = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: sortedKeys.map(k => k.length > 20 ? k.substring(0,20)+'...' : k),
+                        datasets: [{ label: issueChartMode === 'cost' ? 'Cost' : 'Count', data:values, backgroundColor:'#ef4444', borderRadius:4 }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => issueChartMode === 'cost' ? formatMoney(c.raw) : c.raw + ' ครั้ง' } } },
+                        scales: { x: { grid: { display:false }, ticks: {color: textColor} }, y: { grid: { display:false }, ticks: {color: textColor} } }
+                    }
+                });
+            }
         }
 
         const formatMoney = (n) => '฿' + n.toLocaleString('th-TH', {maximumFractionDigits:0});
