@@ -53,6 +53,10 @@
         /* Hide Scrollbar */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Chevron Rotation */
+        .chevron { transition: transform 0.3s ease-in-out; }
+        .chevron.rotate-180 { transform: rotate(180deg); }
     </style>
 </head>
 <body class="text-slate-800 pb-20">
@@ -105,20 +109,20 @@
         <!-- DASHBOARD AREA -->
         <div id="dashboard-view" class="space-y-5 fade-in hidden">
             
-            <!-- --- NEW FILTER SECTION (MOVED TO TOP) --- -->
+            <!-- FILTER SECTION -->
             <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
                 <h3 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
                     <i class="fas fa-filter text-slate-400"></i> ตัวกรองข้อมูล (Filters)
                 </h3>
                 <div class="flex flex-col md:flex-row gap-3">
                     <div class="flex gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar flex-1">
-                        <select id="locationFilter" onchange="filterLocationChanged()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[120px] focus:ring-2 focus:ring-blue-500">
+                        <select id="locationFilter" onchange="filterLocationChanged()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[120px] focus:ring-2 focus:ring-blue-500 cursor-pointer">
                             <option value="All">ทุกสถานที่</option>
                         </select>
-                        <select id="machineFilter" onchange="filterTable()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[120px] focus:ring-2 focus:ring-blue-500">
+                        <select id="machineFilter" onchange="filterTable()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[120px] focus:ring-2 focus:ring-blue-500 cursor-pointer">
                             <option value="All">ทุกเครื่องจักร</option>
                         </select>
-                        <select id="typeFilter" onchange="filterTable()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[100px] focus:ring-2 focus:ring-blue-500">
+                        <select id="typeFilter" onchange="filterTable()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none shadow-sm min-w-[100px] focus:ring-2 focus:ring-blue-500 cursor-pointer">
                             <option value="All">ทุกประเภท</option>
                             <option value="PM">PM</option>
                             <option value="BM">BM</option>
@@ -151,11 +155,11 @@
                 </div>
             </div>
 
-            <!-- Charts -->
+            <!-- Main Charts (Moved Up) -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
                 <div class="lg:col-span-2 bg-white p-4 rounded-xl shadow-sm border border-slate-100">
                     <h3 class="font-bold text-slate-700 mb-4 text-xs md:text-sm flex items-center gap-2 uppercase tracking-wide">
-                        <i class="far fa-chart-bar text-blue-500"></i> Monthly Trend
+                        <i class="far fa-chart-bar text-blue-500"></i> Monthly Cost Trend
                     </h3>
                     <div class="h-48 md:h-72 w-full relative"><canvas id="mainChart"></canvas></div>
                 </div>
@@ -167,38 +171,69 @@
                 </div>
             </div>
 
-            <!-- Data List -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                    <h3 class="font-bold text-slate-700 text-sm flex items-center gap-2">
-                        <i class="fas fa-list text-slate-400"></i> Transaction Logs
+            <!-- Analysis Charts (Moved Down) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- 1. Machine Cost Ranking -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                    <h3 class="font-bold text-slate-700 text-sm mb-4 flex items-center gap-2">
+                        <i class="fas fa-server text-orange-500"></i> ค่าใช้จ่ายแยกตามเครื่อง (Machine Cost)
                     </h3>
+                    <div class="h-64 w-full relative">
+                        <canvas id="machineCostChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 2. Issue Frequency -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                            <i class="fas fa-exclamation-circle text-red-500"></i> อาการเสียที่พบบ่อย (Top Issues)
+                        </h3>
+                        <span class="text-[10px] text-slate-400 bg-slate-50 px-2 py-1 rounded">*Excl. PM</span>
+                    </div>
+                    <div class="h-64 w-full relative">
+                        <canvas id="issueFreqChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Collapsible Data List -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                <!-- Header (Click to Toggle) -->
+                <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition-colors" onclick="toggleLogs()">
+                    <div class="flex items-center gap-2">
+                        <i id="logs-chevron" class="fas fa-chevron-right text-slate-400 transition-transform duration-300"></i>
+                        <h3 class="font-bold text-slate-700 text-sm">Transaction Logs</h3>
+                    </div>
                     <span id="record-count" class="text-xs text-slate-400">Loading...</span>
                 </div>
 
-                <!-- Desktop Table -->
-                <div id="desktop-table-view" class="overflow-x-auto hidden">
-                    <table class="w-full text-sm text-left">
-                        <thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0 shadow-sm">
-                            <tr>
-                                <th class="px-6 py-3 bg-slate-50">Date</th>
-                                <th class="px-6 py-3 bg-slate-50">Machine</th>
-                                <th class="px-6 py-3 bg-slate-50">Type</th>
-                                <th class="px-6 py-3 bg-slate-50">Details</th>
-                                <th class="px-6 py-3 bg-slate-50 text-right">Budget</th>
-                                <th class="px-6 py-3 bg-slate-50 text-right">Actual</th>
-                                <th class="px-6 py-3 bg-slate-50 text-right">Var</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tableBody" class="divide-y divide-slate-100 bg-white"></tbody>
-                    </table>
-                </div>
+                <!-- Content (Hidden by default) -->
+                <div id="logs-content" class="hidden transition-all duration-300 ease-in-out">
+                    <!-- Desktop Table -->
+                    <div id="desktop-table-view" class="overflow-x-auto hidden">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0 shadow-sm">
+                                <tr>
+                                    <th class="px-6 py-3 bg-slate-50">Date</th>
+                                    <th class="px-6 py-3 bg-slate-50">Machine</th>
+                                    <th class="px-6 py-3 bg-slate-50">Type</th>
+                                    <th class="px-6 py-3 bg-slate-50">Details</th>
+                                    <th class="px-6 py-3 bg-slate-50 text-right">Budget</th>
+                                    <th class="px-6 py-3 bg-slate-50 text-right">Actual</th>
+                                    <th class="px-6 py-3 bg-slate-50 text-right">Var</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody" class="divide-y divide-slate-100 bg-white"></tbody>
+                        </table>
+                    </div>
 
-                <!-- Mobile Cards -->
-                <div id="mobile-card-view" class="p-4 space-y-3 bg-slate-50 hidden"></div>
-                
-                <div class="p-3 bg-white border-t border-slate-100 text-center">
-                    <button onclick="showAllData()" class="text-xs text-blue-500 font-bold hover:underline">แสดงข้อมูลทั้งหมด</button>
+                    <!-- Mobile Cards -->
+                    <div id="mobile-card-view" class="p-4 space-y-3 bg-slate-50 hidden"></div>
+                    
+                    <div class="p-3 bg-white border-t border-slate-100 text-center">
+                        <button onclick="showAllData()" class="text-xs text-blue-500 font-bold hover:underline">แสดงข้อมูลทั้งหมด</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -215,26 +250,45 @@
 
     <script>
         // CONFIG
-        // ลิงก์ Google Sheet ที่คุณให้มา (แบบรวม Sheet ทั้งหมดไว้ใน Sheet เดียว)
         const DEFAULT_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTFI8SjwYbMa5nobhz0NzCFryV8Qdo7jWneLPDJeZCohSBUM5x1TYrO57ojtJPPM8JPyZqoqkfZFqgn/pub?output=csv";
         
         let rawData = [], yearsList = [], locMachineMap = {};
         let currentYear = null;
         let chartInstances = {}; 
         let currentView = 'mobile';
-        let showLimit = 500; // เพิ่มจำนวนการแสดงผล
+        let showLimit = 500;
+
+        // --- HELPER FUNCTION: Safe Float Parsing ---
+        function safeFloat(val) {
+            if (val === undefined || val === null || val === '') return 0;
+            const cleanVal = String(val).replace(/,/g, '').trim();
+            const num = parseFloat(cleanVal);
+            return isNaN(num) ? 0 : num; 
+        }
+
+        // --- TOGGLE LOGS FUNCTION ---
+        function toggleLogs() {
+            const content = document.getElementById('logs-content');
+            const chevron = document.getElementById('logs-chevron');
+            
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                chevron.classList.add('rotate-90');
+            } else {
+                content.classList.add('hidden');
+                chevron.classList.remove('rotate-90');
+            }
+        }
 
         // --- INIT ---
         window.onload = () => {
-            // Auto-detect screen size
             if (window.innerWidth >= 768) switchView('desktop');
             else switchView('mobile');
-
             loadDataFromUrl(DEFAULT_URL);
         };
 
         function showAllData() {
-            showLimit = 10000; // Show a lot
+            showLimit = 10000;
             filterTable();
         }
 
@@ -243,7 +297,6 @@
             document.getElementById('loading-overlay').classList.remove('hidden');
             document.getElementById('error-state').classList.add('hidden');
             
-            // Cache Buster
             const fetchUrl = url + '&t=' + new Date().getTime();
 
             Papa.parse(fetchUrl, {
@@ -275,46 +328,49 @@
                 if (!dateVal) return;
 
                 let dateObj;
-                // Improved Date Parsing
                 if (typeof dateVal === 'number') {
                     dateObj = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
                 } else {
                     const s = String(dateVal).trim();
                     if (s.includes('-')) {
-                        // Handle YYYY-MM-DD
                         dateObj = new Date(s);
                     } else if (s.includes('/')) {
                         const p = s.split('/');
-                        // Handle multiple formats: DD/MM/YYYY or MM/DD/YYYY
-                        // Try DD/MM/YYYY first (common in Thailand)
                         if(p[0].length <= 2 && p[1].length <= 2 && p[2].length == 4) {
                              dateObj = new Date(p[2], p[1]-1, p[0]);
                         } else {
-                             // Fallback to standard JS parsing
                              dateObj = new Date(s);
                         }
                     } else {
-                        // Try generic parse
                         dateObj = new Date(s);
                     }
                 }
 
-                // If date is invalid, skip row
                 if (!dateObj || isNaN(dateObj.getTime())) return;
+
+                const budgetVal = safeFloat(row['Budget']);
+                const actualVal = safeFloat(row['Actual'] || row['Actual_Cost']);
+                let varianceVal = safeFloat(row['Variance']);
+                if (varianceVal === 0 && (budgetVal !== 0 || actualVal !== 0)) {
+                    varianceVal = budgetVal - actualVal;
+                }
+
+                let jobType = row['Job_Type'] || row['Type'] || 'BM';
+                jobType = jobType.trim().toUpperCase();
 
                 rawData.push({
                     year: dateObj.getFullYear(),
-                    month: dateObj.getMonth(), // 0-11
+                    month: dateObj.getMonth(),
                     dateStr: dateObj.toLocaleDateString('th-TH', {day:'2-digit', month:'2-digit', year:'2-digit'}),
                     rawDate: dateObj,
                     id: row['Machine_ID']||row['MachineID']||'-',
                     loc: row['Location']||row['location']||'-',
-                    type: row['Job_Type']||row['Type']||'BM',
+                    type: jobType,
                     issue: row['Issue']||row['Description']||'-',
                     action: row['Action_Taken']||row['Action']||'-',
-                    budget: parseFloat(row['Budget']||0),
-                    actual: parseFloat(row['Actual']||row['Actual_Cost']||0),
-                    variance: parseFloat(row['Variance']||((row['Budget']||0)-(row['Actual']||row['Actual_Cost']||0))),
+                    budget: budgetVal,
+                    actual: actualVal,
+                    variance: varianceVal,
                     remark: row['Remark']||''
                 });
             });
@@ -322,11 +378,9 @@
 
         // --- DASHBOARD LOGIC ---
         function initDashboard() {
-            // Extract Years
             const uniqueYears = new Set(rawData.map(d => d.year));
             yearsList = Array.from(uniqueYears).sort((a, b) => a - b);
 
-            // Extract Locations & Machines
             locMachineMap = {};
             const uniqueLocations = new Set();
             rawData.forEach(row => {
@@ -337,7 +391,6 @@
                 }
             });
 
-            // Filters
             const locSelect = document.getElementById('locationFilter');
             locSelect.innerHTML = '<option value="All">ทุกสถานที่</option>';
             Array.from(uniqueLocations).sort().forEach(l => {
@@ -346,7 +399,6 @@
             });
             updateMachineFilter('All');
 
-            // Year Buttons
             const container = document.getElementById('year-selector-container');
             container.innerHTML = '';
             if (yearsList.length > 0) {
@@ -358,12 +410,10 @@
                     btn.onclick = () => switchYear(year);
                     container.appendChild(btn);
                 });
-                // Select latest
                 switchYear(yearsList[yearsList.length - 1]);
             }
         }
 
-        // --- FILTER & RENDER ---
         function switchView(mode) {
             currentView = mode;
             const dtBtn = document.getElementById('btn-desktop');
@@ -425,7 +475,7 @@
                 return d.year === currentYear &&
                        (locVal === 'All' || d.loc === locVal) &&
                        (macVal === 'All' || d.id === macVal) &&
-                       (typeVal === 'All' || d.type === typeVal) &&
+                       (typeVal === 'All' || d.type === typeVal) && 
                        ((d.id.toLowerCase().includes(searchVal)) || (d.issue.toLowerCase().includes(searchVal)));
             });
 
@@ -443,11 +493,12 @@
             document.getElementById('record-count').innerText = `${filtered.length} รายการ`;
 
             renderCharts(filtered);
+            renderMachineCostChart(filtered);
+            renderIssueChart(filtered);
             renderLists(filtered);
         }
 
         function renderLists(data) {
-            // Increase limit from 100 to 500
             const sorted = data.sort((a,b)=>b.rawDate-a.rawDate).slice(0, showLimit); 
             
             // Desktop Table
@@ -506,7 +557,7 @@
             data.forEach(d => {
                 mActual[d.month] += d.actual;
                 mBudget[d.month] += d.budget;
-                if (d.type.toUpperCase() === 'PM') pm++; else bm++;
+                if (d.type === 'PM') pm++; else bm++;
             });
 
             const ctxMain = document.getElementById('mainChart').getContext('2d');
@@ -517,7 +568,7 @@
                     labels: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
                     datasets: [{ label:'Bud', data:mBudget, backgroundColor:'#cbd5e1', borderRadius:4 }, { label:'Act', data:mActual, backgroundColor:'#3b82f6', borderRadius:4 }]
                 },
-                options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10}}} }
+                options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top'}} }
             });
 
             const ctxPie = document.getElementById('pieChart').getContext('2d');
@@ -526,6 +577,63 @@
                 type: 'doughnut',
                 data: { labels: ['PM','BM'], datasets: [{ data:[pm,bm], backgroundColor:['#10b981','#ef4444'], borderWidth:0 }] },
                 options: { responsive:true, maintainAspectRatio:false, cutout:'70%', plugins:{legend:{position:'right', labels:{boxWidth:10}}} }
+            });
+        }
+
+        function renderMachineCostChart(data) {
+            const aggregated = {};
+            data.forEach(d => {
+                if(!d.id || d.id==='-') return;
+                if(!aggregated[d.id]) aggregated[d.id] = 0;
+                aggregated[d.id] += d.actual;
+            });
+            const sortedKeys = Object.keys(aggregated).sort((a,b)=>aggregated[b]-aggregated[a]).slice(0, 10);
+            const values = sortedKeys.map(k=>aggregated[k]);
+
+            const ctx = document.getElementById('machineCostChart').getContext('2d');
+            if(chartInstances.machineCost) chartInstances.machineCost.destroy();
+            chartInstances.machineCost = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedKeys,
+                    datasets: [{ label:'Cost', data:values, backgroundColor:'#f97316', borderRadius:4 }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { grid: { display:false } }, y: { grid: { display:false } } }
+                }
+            });
+        }
+
+        function renderIssueChart(data) {
+            const aggregated = {};
+            data.forEach(d => {
+                if(!d.issue || d.issue==='-') return;
+                // Exclude Monthly Maintenance
+                if(d.issue.toLowerCase().includes("monthly maintenance")) return;
+                
+                if(!aggregated[d.issue]) aggregated[d.issue] = 0;
+                aggregated[d.issue]++;
+            });
+            const sortedKeys = Object.keys(aggregated).sort((a,b)=>aggregated[b]-aggregated[a]).slice(0, 5);
+            const values = sortedKeys.map(k=>aggregated[k]);
+
+            const ctx = document.getElementById('issueFreqChart').getContext('2d');
+            if(chartInstances.issueFreq) chartInstances.issueFreq.destroy();
+            chartInstances.issueFreq = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedKeys.map(k => k.length > 20 ? k.substring(0,20)+'...' : k),
+                    datasets: [{ label:'Count', data:values, backgroundColor:'#ef4444', borderRadius:4 }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { grid: { display:false } }, y: { grid: { display:false } } }
+                }
             });
         }
 
