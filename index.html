@@ -2,33 +2,35 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   AlertTriangle, Clock, FileText, Database, Settings, 
   Car, ChevronRight, X, AlertCircle, CheckCircle, 
-  List, Search, RefreshCw, WifiOff, Edit3, Save, Calendar, Zap
+  List, Search, RefreshCw, WifiOff, Edit3, Save, Calendar
 } from 'lucide-react';
 
-// --- 🔽 ใส่ Web App URL จาก Google Apps Script ตรงนี้ 🔽 ---
+// --- 🔽 Web App URL 🔽 ---
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxXGEJJ6YFD9Bfk0b6QF1iL_b48tRuKuz7BFrDe38HUeVH41wlZaulRHyFEKAjNEJi_/exec"; 
-// ตัวอย่าง: "https://script.google.com/macros/s/AKfycbx.../exec"
 
 // --- Utility Functions ---
 
-// แปลงวันที่จาก API (อาจจะเป็น dd/mm/yyyy หรือ YYYY-MM-DD) ให้เป็น Object Date
 const parseDate = (dateStr) => {
   if (!dateStr) return null;
-  let targetDate;
+  // ถ้าเป็น Date Object อยู่แล้ว
+  if (dateStr instanceof Date) return dateStr;
   
-  // กรณีเป็น dd/mm/yyyy (จาก Sheet)
-  if (dateStr.includes('/')) {
-    const parts = dateStr.split('/');
+  let targetDate;
+  const str = String(dateStr).trim();
+
+  // กรณีเป็น dd/mm/yyyy (เช่น 31/12/2567)
+  if (str.includes('/')) {
+    const parts = str.split('/');
     if (parts.length === 3) {
       const day = parts[0].padStart(2, '0');
       const month = parts[1].padStart(2, '0');
       let year = parseInt(parts[2]);
-      if (year > 2400) year -= 543; // แปลง พ.ศ. เป็น ค.ศ.
+      if (year > 2400) year -= 543; // แปลง พ.ศ. -> ค.ศ.
       targetDate = new Date(`${year}-${month}-${day}`);
     }
   } else {
-    // กรณีเป็น YYYY-MM-DD (ISO)
-    targetDate = new Date(dateStr);
+    // กรณีเป็น YYYY-MM-DD หรือมาตรฐานอื่น
+    targetDate = new Date(str);
   }
   return targetDate;
 }
@@ -46,7 +48,7 @@ const getDaysRemaining = (dateStr) => {
 
 const formatDateThai = (dateStr) => {
   const date = parseDate(dateStr);
-  if (!date || isNaN(date.getTime())) return "-";
+  if (!date || isNaN(date.getTime())) return String(dateStr); // ถ้าแปลงไม่ได้ ให้โชว์ค่าเดิม (Debug)
   return date.toLocaleDateString('th-TH', {
     year: 'numeric',
     month: 'short',
@@ -54,7 +56,6 @@ const formatDateThai = (dateStr) => {
   });
 };
 
-// แปลงเป็น YYYY-MM-DD สำหรับใส่ใน input type="date"
 const formatDateForInput = (dateStr) => {
   const date = parseDate(dateStr);
   if (!date || isNaN(date.getTime())) return "";
@@ -129,7 +130,6 @@ const DashboardCard = ({ title, icon: Icon, expiredCount, warningCount, totalCou
   );
 };
 
-// Edit Modal
 const EditModal = ({ car, onClose, onSave, isSaving }) => {
   const [formData, setFormData] = useState({
     insurance_expire: formatDateForInput(car.insurance_expire),
@@ -142,7 +142,7 @@ const EditModal = ({ car, onClose, onSave, isSaving }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="bg-white rounded-2xl w-full max-w-sm p-6 relative z-10 shadow-2xl animate-in zoom-in-95 duration-200">
         <h3 className="text-xl font-bold mb-1">แก้ไขข้อมูล</h3>
@@ -196,14 +196,14 @@ const EditModal = ({ car, onClose, onSave, isSaving }) => {
   );
 };
 
-// Detail List Modal
 const DetailModal = ({ category, data, allCarsData, onClose, onEditCar }) => {
   const [activeTab, setActiveTab] = useState('expired');
   const [searchTerm, setSearchTerm] = useState("");
   const themeBg = category === 'insurance' ? 'bg-blue-600' : category === 'tax' ? 'bg-orange-600' : 'bg-slate-700';
 
+  // Helper สำหรับการ์ด All
   if (category === 'all') {
-    const filteredAll = allCarsData.filter(c => c.plate.includes(searchTerm));
+    const filteredAll = allCarsData.filter(c => c.plate.toLowerCase().includes(searchTerm.toLowerCase()));
     return (
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
@@ -227,7 +227,6 @@ const DetailModal = ({ category, data, allCarsData, onClose, onEditCar }) => {
             {filteredAll.map((car, index) => {
               const insDays = getDaysRemaining(car.insurance_expire);
               const taxDays = getDaysRemaining(car.tax_expire);
-              const StatusDot = ({ days }) => (<div className={`w-3 h-3 rounded-full ring-2 ring-white shadow-sm ${days < 0 ? 'bg-red-500' : days <= 30 ? 'bg-yellow-400' : 'bg-green-400'}`}></div>);
               return (
                 <div key={index} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-3">
@@ -251,10 +250,11 @@ const DetailModal = ({ category, data, allCarsData, onClose, onEditCar }) => {
     );
   }
 
+  // Helper สำหรับการ์ด Insurance / Tax
   const safeData = data || [];
   const expiredList = safeData.filter(d => d.days < 0);
   const warningList = safeData.filter(d => d.days >= 0 && d.days <= 30);
-  const currentList = (activeTab === 'expired' ? expiredList : warningList).filter(item => item.plate.includes(searchTerm));
+  const currentList = (activeTab === 'expired' ? expiredList : warningList).filter(item => item.plate.toLowerCase().includes(searchTerm.toLowerCase()));
   const getThemeTitle = () => category === 'insurance' ? 'ประกันภัยรถยนต์' : 'ภาษีรถยนต์';
 
   return (
@@ -316,7 +316,7 @@ const DetailModal = ({ category, data, allCarsData, onClose, onEditCar }) => {
 
 // --- Main App ---
 
-export default function FleetManagerV6_Editable() {
+export default function FleetManagerV7_Racer() {
   const [cars, setCars] = useState([]); 
   const [selectedCategory, setSelectedCategory] = useState(null); 
   const [showSettings, setShowSettings] = useState(false);
@@ -335,7 +335,7 @@ export default function FleetManagerV6_Editable() {
     };
   }, [cars]);
 
-  // Fetch Data from Apps Script (GET)
+  // Fetch Data
   const fetchSheetData = async (url) => {
     const targetUrl = url || scriptUrl;
     if (!targetUrl) return;
@@ -343,56 +343,55 @@ export default function FleetManagerV6_Editable() {
     setLoading(true);
     setError(null);
     try {
+      // ลองใช้ fetch แบบปกติก่อน (สำหรับ Apps Script ที่ deploy แบบ Anyone)
       const response = await fetch(targetUrl);
-      if (!response.ok) throw new Error("Network response was not ok");
       
-      const jsonData = await response.json(); // อ่านเป็น JSON โดยตรง
-      if (!Array.isArray(jsonData) || jsonData.length === 0) throw new Error("Format ข้อมูลไม่ถูกต้อง หรือไม่มีข้อมูล");
+      // เช็คว่า Response OK ไหม
+      if (!response.ok) {
+        throw new Error(`HTTP Error: ${response.status} (ตรวจสอบ Permission ว่าเป็น 'Anyone' หรือยัง)`);
+      }
+      
+      // ลอง Parse JSON
+      let jsonData;
+      try {
+         jsonData = await response.json();
+      } catch (jsonErr) {
+         const text = await response.text();
+         // ถ้า Response เป็น HTML (มักจะเป็นหน้า Login Google) แปลว่า Permission ผิด
+         if (text.includes("<!DOCTYPE html>") || text.includes("Google Accounts")) {
+            throw new Error("ติดสิทธิ์การเข้าถึง (Permission Denied) กรุณาตั้งค่า Deploy เป็น 'Anyone'");
+         }
+         throw new Error("รูปแบบข้อมูลที่ได้รับไม่ถูกต้อง (Not JSON)");
+      }
+
+      if (!Array.isArray(jsonData) || jsonData.length === 0) throw new Error("ไม่พบข้อมูล หรือ Format ผิด");
 
       setCars(jsonData);
       setShowSettings(false);
     } catch (error) {
       console.error(error);
       setCars([]); 
-      setError("ไม่สามารถเชื่อมต่อกับ Google Apps Script ได้ ตรวจสอบ URL หรือการ Deploy");
+      setError(error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Update Data to Apps Script (POST)
+  // Save Data
   const handleSaveCar = async (plate, updatedData) => {
     if (!scriptUrl) return;
     setIsSaving(true);
-    
     try {
-      // ส่งข้อมูลไป Apps Script
-      // หมายเหตุ: การใช้ no-cors อาจทำให้ไม่ได้ response กลับมา แต่ส่งข้อมูลได้
-      // แต่ถ้า deploy as web app ถูกต้อง (Anyone) จะสามารถใช้ standard fetch ได้
       await fetch(scriptUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8', // ใช้ text/plain เพื่อหลีกเลี่ยง preflight CORS
-        },
-        body: JSON.stringify({
-          plate: plate,
-          insurance_expire: updatedData.insurance_expire,
-          tax_expire: updatedData.tax_expire
-        })
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ plate, ...updatedData })
       });
-
-      // อัปเดต State ในหน้าจอทันที (Optimistic Update)
-      const newCars = cars.map(c => {
-        if (c.plate === plate) {
-          return { ...c, ...updatedData };
-        }
-        return c;
-      });
+      const newCars = cars.map(c => c.plate === plate ? { ...c, ...updatedData } : c);
       setCars(newCars);
-      setEditingCar(null); // ปิด Modal
-      
+      setEditingCar(null); 
     } catch (err) {
-      alert("เกิดข้อผิดพลาดในการบันทึก: " + err.message);
+      alert("บันทึกไม่สำเร็จ: " + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -404,18 +403,19 @@ export default function FleetManagerV6_Editable() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 relative overflow-hidden">
+      {/* Background Decor */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
-        <div className="absolute top-[-50px] left-[-50px] w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse"></div>
-        <div className="absolute top-[20%] right-[-50px] w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{animationDelay: '1s'}}></div>
-        <div className="absolute bottom-[-50px] left-[20%] w-96 h-96 bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse" style={{animationDelay: '2s'}}></div>
+        <div className="absolute top-[-50px] left-[-50px] w-96 h-96 bg-red-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
+        <div className="absolute top-[20%] right-[-50px] w-96 h-96 bg-yellow-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{animationDelay: '1s'}}></div>
       </div>
       
       <header className="p-6 flex justify-between items-center max-w-lg mx-auto relative z-10">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tighter flex items-center gap-2">
-            <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Racer</span> การไฟฟ้า
+            <span className="text-red-600 italic transform -skew-x-12" style={{ fontFamily: 'Impact, sans-serif' }}>Racer</span> 
+            <span className="text-slate-700">การไฟฟ้า</span>
           </h1>
-          <p className="text-slate-500 text-xs font-medium uppercase tracking-widest mt-1">ระบบติดตามวันหมดอายุ (แก้ไขได้)</p>
+          <p className="text-slate-500 text-xs font-medium uppercase tracking-widest mt-1">ระบบติดตามวันหมดอายุ</p>
         </div>
         <button onClick={() => setShowSettings(true)} className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition text-slate-600 active:scale-95"><Settings size={20} /></button>
       </header>
@@ -424,18 +424,21 @@ export default function FleetManagerV6_Editable() {
         {error && (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center animate-in fade-in slide-in-from-top-4">
                 <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><WifiOff size={32} className="text-red-500" /></div>
-                <h3 className="text-lg font-bold text-red-700 mb-2">เชื่อมต่อ API ไม่ได้</h3>
-                <p className="text-red-600 text-sm">{error}</p>
-                <button onClick={() => setShowSettings(true)} className="mt-4 px-6 py-2 bg-red-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-200 hover:bg-red-700 transition">ตรวจสอบการตั้งค่า</button>
+                <h3 className="text-lg font-bold text-red-700 mb-2">เชื่อมต่อไม่ได้</h3>
+                <p className="text-red-600 text-sm mb-2">{error}</p>
+                <div className="text-xs text-red-500 bg-white/50 p-2 rounded mb-4">
+                  วิธีแก้: ไปที่ Google Apps Script &gt; Manage Deployments &gt; Edit &gt; Who has access = <strong>Anyone</strong>
+                </div>
+                <button onClick={() => setShowSettings(true)} className="px-6 py-2 bg-red-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-200 hover:bg-red-700 transition">ตรวจสอบ URL</button>
             </div>
         )}
 
         {!error && cars.length === 0 && !loading && (
             <div className="bg-white/80 backdrop-blur border border-slate-200 rounded-3xl p-8 text-center shadow-xl">
                 <div className="bg-blue-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce"><Database size={32} className="text-blue-500" /></div>
-                <h3 className="text-xl font-bold text-slate-800 mb-2">เริ่มใช้งาน</h3>
-                <p className="text-slate-500 text-sm mb-6">กรุณาระบุ URL ของ Google Apps Script Web App</p>
-                <button onClick={() => setShowSettings(true)} className="w-full py-3 bg-slate-800 text-white rounded-xl font-bold shadow-lg hover:bg-slate-900 transition">ตั้งค่า API</button>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">พร้อมใช้งาน</h3>
+                <p className="text-slate-500 text-sm mb-6">กดปุ่มด้านล่างเพื่อดึงข้อมูลล่าสุด</p>
+                <button onClick={() => fetchSheetData()} className="w-full py-3 bg-slate-800 text-white rounded-xl font-bold shadow-lg hover:bg-slate-900 transition">ดึงข้อมูลเดี๋ยวนี้</button>
             </div>
         )}
 
@@ -461,11 +464,10 @@ export default function FleetManagerV6_Editable() {
           data={selectedCategory !== 'all' ? stats[selectedCategory].data : []}
           allCarsData={cars}
           onClose={() => setSelectedCategory(null)}
-          onEditCar={setEditingCar} // ส่งฟังก์ชันเปิดหน้า edit
+          onEditCar={setEditingCar} 
         />
       )}
 
-      {/* Edit Modal */}
       {editingCar && (
         <EditModal 
           car={editingCar} 
@@ -485,11 +487,8 @@ export default function FleetManagerV6_Editable() {
                 <label className="text-xs font-bold text-gray-400 mb-2 block uppercase tracking-wide">Google Apps Script URL</label>
                 <input value={scriptUrl} onChange={(e) => setScriptUrl(e.target.value)} className="w-full border p-3 rounded-xl text-sm mb-3 focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50 text-slate-600" placeholder="https://script.google.com/..." />
                 <button onClick={() => fetchSheetData()} disabled={loading} className="w-full bg-slate-800 text-white p-3 rounded-xl text-sm font-bold hover:bg-slate-900 transition shadow-lg shadow-slate-200 flex items-center justify-center gap-2">
-                  {loading ? <RefreshCw size={16} className="animate-spin"/> : 'เชื่อมต่อ'}
+                  {loading ? <RefreshCw size={16} className="animate-spin"/> : 'เชื่อมต่อใหม่'}
                 </button>
-              </div>
-              <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-100 text-xs text-yellow-800 leading-relaxed">
-                 <strong>วิธีติดตั้ง:</strong> 1. Extensions &gt; Apps Script 2. วางโค้ดที่ให้ไป 3. Deploy as Web App (Anyone) 4. นำ URL มาใส่ที่นี่
               </div>
             </div>
             <button onClick={() => setShowSettings(false)} className="mt-4 w-full text-gray-400 text-sm hover:text-gray-600">ปิดหน้าต่าง</button>
