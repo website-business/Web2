@@ -31,11 +31,9 @@
             100% { transform: translate(0px, 0px) scale(1); }
         }
         .animate-blob { animation: blob 7s infinite; }
-        .animation-delay-2000 { animation-delay: 2s; }
-        .animation-delay-4000 { animation-delay: 4s; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 overflow-x-hidden">
+<body class="bg-slate-50 text-slate-900 overflow-x-hidden min-h-screen">
 
     <div id="root"></div>
 
@@ -45,11 +43,9 @@
         // --- 🔽 Web App URL 🔽 ---
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxXGEJJ6YFD9Bfk0b6QF1iL_b48tRuKuz7BFrDe38HUeVH41wlZaulRHyFEKAjNEJi_/exec"; 
 
-        // --- Icons (Inline SVG Components for single file portability) ---
+        // --- Icons ---
         const Icon = ({ path, className, size = 24 }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                {path}
-            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{path}</svg>
         );
 
         const Icons = {
@@ -76,7 +72,6 @@
         const parseDate = (dateStr) => {
             if (!dateStr) return null;
             if (dateStr instanceof Date) return dateStr;
-            let targetDate;
             const str = String(dateStr).trim();
             if (str.includes('/')) {
                 const parts = str.split('/');
@@ -85,12 +80,12 @@
                     const month = parts[1].padStart(2, '0');
                     let year = parseInt(parts[2]);
                     if (year > 2400) year -= 543; 
-                    targetDate = new Date(`${year}-${month}-${day}`);
+                    return new Date(`${year}-${month}-${day}`);
                 }
             } else {
-                targetDate = new Date(str);
+                return new Date(str);
             }
-            return targetDate;
+            return null;
         }
 
         const getDaysRemaining = (dateStr) => {
@@ -99,8 +94,7 @@
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             targetDate.setHours(0, 0, 0, 0);
-            const diffTime = targetDate - today;
-            return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return Math.ceil((targetDate - today) / (1000 * 60 * 60 * 24));
         };
 
         const formatDateThai = (dateStr) => {
@@ -115,7 +109,7 @@
             return date.toISOString().split('T')[0];
         };
 
-        // --- Sub-Components ---
+        // --- Components ---
 
         const DashboardCard = ({ title, iconName, expiredCount, warningCount, totalCount, type, onClick }) => {
             const IconComp = Icons[iconName] || Icons.FileText;
@@ -129,9 +123,9 @@
                 <button 
                     onClick={onClick}
                     disabled={totalCount === 0}
-                    className={`relative w-full overflow-hidden rounded-3xl shadow-xl ${theme.shadow} transition-all duration-300 transform hover:scale-[1.02] active:scale-95 group bg-white border border-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-left`}
+                    className={`relative w-full h-full min-h-[160px] overflow-hidden rounded-3xl shadow-xl ${theme.shadow} transition-all duration-300 transform hover:scale-[1.02] active:scale-95 group bg-white border border-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-left flex flex-col`}
                 >
-                    <div className={`${theme.gradient} p-5 text-white relative overflow-hidden`}>
+                    <div className={`${theme.gradient} p-5 text-white relative overflow-hidden flex-1`}>
                         <div className="relative z-10 flex justify-between items-start">
                             <div className="flex items-center gap-3">
                                 <div className={`p-2.5 rounded-xl backdrop-blur-md ${theme.iconBg} border border-white/20`}>
@@ -155,8 +149,8 @@
                                     <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">จำนวนรถทั้งหมด</p>
                                     <p className="text-5xl font-black text-slate-700 tracking-tighter">{totalCount}</p>
                                 </div>
-                                <div className="absolute right-4 bottom-4 text-slate-100">
-                                    <Icons.Car size={64} />
+                                <div className="absolute right-4 bottom-4 text-slate-100 opacity-20 transform -rotate-12 scale-150">
+                                    <Icons.Car size={100} />
                                 </div>
                             </div>
                         ) : (
@@ -193,7 +187,7 @@
             };
 
             return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
                     <div className="bg-white rounded-2xl w-full max-w-sm p-6 relative z-10 shadow-2xl animate-in zoom-in-95 duration-200">
                         <h3 className="text-xl font-bold mb-1">แก้ไขข้อมูล</h3>
@@ -231,13 +225,16 @@
             const [searchTerm, setSearchTerm] = useState("");
             const themeBg = category === 'insurance' ? 'bg-blue-600' : category === 'tax' ? 'bg-orange-600' : 'bg-slate-700';
 
-            // Helper: All Cars
+            // --- RESPONSIVE ADJUSTMENTS ---
+            // Desktop: max-w-5xl for grid layout
+            // Mobile: max-w-md (full width mostly)
+
             if (category === 'all') {
                 const filteredAll = allCarsData.filter(c => c.plate.toLowerCase().includes(searchTerm.toLowerCase()));
                 return (
-                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+                    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
                         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
-                        <div className="bg-white/95 backdrop-blur-xl w-full sm:max-w-md h-[90vh] sm:h-[85vh] rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden relative z-10 transition-transform animate-in slide-in-from-bottom duration-300">
+                        <div className="bg-white/95 backdrop-blur-xl w-full md:max-w-5xl h-[90vh] md:h-[85vh] rounded-t-3xl md:rounded-2xl shadow-2xl flex flex-col overflow-hidden relative z-10 transition-transform animate-in slide-in-from-bottom duration-300">
                             <div className="p-5 bg-white border-b border-gray-100 flex justify-between items-center sticky top-0 z-10 shadow-sm">
                                 <div>
                                     <h2 className="text-xl font-black text-slate-800 flex items-center gap-2"><Icons.List className="text-slate-600"/> รายการรถทั้งหมด</h2>
@@ -246,32 +243,35 @@
                                 <button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition"><Icons.X size={20} className="text-slate-600"/></button>
                             </div>
                             <div className="p-4 bg-slate-50 border-b border-slate-100">
-                                <div className="relative">
+                                <div className="relative max-w-md mx-auto md:mx-0">
                                     <div className="absolute left-3 top-3 text-gray-400"><Icons.Search size={16} /></div>
                                     <input type="text" placeholder="พิมพ์ค้นหาทะเบียน..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-slate-400 text-sm bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
                             </div>
-                            <div className="overflow-y-auto flex-1 p-4 bg-slate-50/50 space-y-3 pb-20">
-                                {filteredAll.map((car, index) => {
-                                    const insDays = getDaysRemaining(car.insurance_expire);
-                                    const taxDays = getDaysRemaining(car.tax_expire);
-                                    return (
-                                        <div key={index} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center hover:shadow-md transition-shadow">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-slate-100 p-2 rounded-lg text-slate-500"><Icons.Car size={20} /></div>
-                                                <div>
-                                                    <div className="font-bold text-gray-800 text-base">{car.plate}</div>
-                                                    <div className="flex gap-2 text-[10px] uppercase font-bold tracking-wider text-gray-400 mt-0.5">
-                                                        <span className={insDays < 0 ? "text-red-500" : ""}>ประกัน {formatDateThai(car.insurance_expire)}</span>
-                                                        <span>•</span>
-                                                        <span className={taxDays < 0 ? "text-red-500" : ""}>ภาษี {formatDateThai(car.tax_expire)}</span>
+                            <div className="overflow-y-auto flex-1 p-4 bg-slate-50/50">
+                                {/* GRID LAYOUT for Desktop */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20">
+                                    {filteredAll.map((car, index) => {
+                                        const insDays = getDaysRemaining(car.insurance_expire);
+                                        const taxDays = getDaysRemaining(car.tax_expire);
+                                        return (
+                                            <div key={index} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center hover:shadow-md transition-shadow">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="bg-slate-100 p-2 rounded-lg text-slate-500"><Icons.Car size={20} /></div>
+                                                    <div>
+                                                        <div className="font-bold text-gray-800 text-base">{car.plate}</div>
+                                                        <div className="flex gap-2 text-[10px] uppercase font-bold tracking-wider text-gray-400 mt-0.5">
+                                                            <span className={insDays < 0 ? "text-red-500" : ""}>ประกัน {formatDateThai(car.insurance_expire)}</span>
+                                                            <span>•</span>
+                                                            <span className={taxDays < 0 ? "text-red-500" : ""}>ภาษี {formatDateThai(car.tax_expire)}</span>
+                                                        </div>
                                                     </div>
                                                 </div>
+                                                <button onClick={() => onEditCar(car)} className="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100"><Icons.Edit3 size={16}/></button>
                                             </div>
-                                            <button onClick={() => onEditCar(car)} className="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100"><Icons.Edit3 size={16}/></button>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -287,9 +287,9 @@
             const IconTitle = category === 'insurance' ? Icons.FileText : Icons.Database;
 
             return (
-                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+                <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
-                    <div className="bg-white/95 backdrop-blur-xl w-full sm:max-w-md h-[90vh] sm:h-[85vh] rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden relative z-10 transition-transform animate-in slide-in-from-bottom duration-300">
+                    <div className="bg-white/95 backdrop-blur-xl w-full md:max-w-5xl h-[90vh] md:h-[85vh] rounded-t-3xl md:rounded-2xl shadow-2xl flex flex-col overflow-hidden relative z-10 transition-transform animate-in slide-in-from-bottom duration-300">
                         <div className={`p-6 pb-8 text-white ${themeBg} relative overflow-hidden shadow-lg`}>
                             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/3 blur-2xl"></div>
                             <div className="relative z-10 flex justify-between items-center">
@@ -303,7 +303,7 @@
                             </div>
                         </div>
                         <div className="px-4 -mt-6 relative z-20 space-y-3">
-                            <div className="bg-white p-1.5 rounded-xl shadow-lg border border-gray-100 flex">
+                            <div className="bg-white p-1.5 rounded-xl shadow-lg border border-gray-100 flex max-w-md mx-auto md:mx-0">
                                 <button onClick={() => setActiveTab('expired')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition-all duration-300 ${activeTab === 'expired' ? 'bg-red-50 text-red-600 shadow-sm ring-1 ring-red-100' : 'text-gray-400 hover:bg-gray-50'}`}>
                                     <Icons.AlertCircle size={16} className={activeTab === 'expired' ? 'animate-pulse' : ''} /> หมดอายุ <span className="bg-white px-1.5 rounded text-xs ml-1 shadow-sm border">{expiredList.length}</span>
                                 </button>
@@ -311,30 +311,33 @@
                                     <Icons.Clock size={16} /> ใกล้หมด <span className="bg-white px-1.5 rounded text-xs ml-1 shadow-sm border">{warningList.length}</span>
                                 </button>
                             </div>
-                            <div className="relative shadow-sm rounded-xl">
+                            <div className="relative shadow-sm rounded-xl max-w-md mx-auto md:mx-0">
                                 <div className="absolute left-3 top-3 text-gray-400"><Icons.Search size={16} /></div>
                                 <input type="text" placeholder="ค้นหาในรายการนี้..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-slate-300 text-sm bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </div>
                         </div>
-                        <div className="overflow-y-auto flex-1 p-4 bg-slate-50/50 space-y-3 mt-2 pb-20">
+                        <div className="overflow-y-auto flex-1 p-4 bg-slate-50/50">
+                            {/* GRID LAYOUT for Desktop */}
                             {currentList.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center h-48 text-gray-300">
                                     <div className="bg-gray-100 p-4 rounded-full mb-3"><Icons.CheckCircle size={40} className="text-gray-300" /></div>
                                     <p>ไม่พบรายการ</p>
                                 </div>
                             ) : (
-                                currentList.map((item, index) => (
-                                    <div key={index} className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl flex justify-between items-center hover:shadow-lg transition-all duration-300 border border-white">
-                                        <div>
-                                            <div className="flex items-center gap-2"><span className="text-lg font-black text-slate-700 tracking-tight">{item.plate}</span></div>
-                                            <div className="text-sm text-gray-500 flex items-center gap-1 mt-1"><span className="font-medium bg-gray-100 px-2 py-0.5 rounded text-xs">{formatDateThai(item.expireDate)}</span></div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20">
+                                    {currentList.map((item, index) => (
+                                        <div key={index} className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl flex justify-between items-center hover:shadow-lg transition-all duration-300 border border-white">
+                                            <div>
+                                                <div className="flex items-center gap-2"><span className="text-lg font-black text-slate-700 tracking-tight">{item.plate}</span></div>
+                                                <div className="text-sm text-gray-500 flex items-center gap-1 mt-1"><span className="font-medium bg-gray-100 px-2 py-0.5 rounded text-xs">{formatDateThai(item.expireDate)}</span></div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className={`px-4 py-2 rounded-xl text-xs font-bold shadow-sm border ${item.days < 0 ? 'bg-red-500 text-white border-red-400' : 'bg-yellow-400 text-yellow-900 border-yellow-300'}`}>{item.days < 0 ? `เกิน ${Math.abs(item.days)} วัน` : `เหลือ ${item.days} วัน`}</div>
+                                                <button onClick={() => onEditCar(allCarsData.find(c => c.plate === item.plate))} className="p-2 text-gray-400 hover:text-blue-600 bg-white rounded-lg border border-gray-200"><Icons.Edit3 size={16}/></button>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <div className={`px-4 py-2 rounded-xl text-xs font-bold shadow-sm border ${item.days < 0 ? 'bg-red-500 text-white border-red-400' : 'bg-yellow-400 text-yellow-900 border-yellow-300'}`}>{item.days < 0 ? `เกิน ${Math.abs(item.days)} วัน` : `เหลือ ${item.days} วัน`}</div>
-                                            <button onClick={() => onEditCar(allCarsData.find(c => c.plate === item.plate))} className="p-2 text-gray-400 hover:text-blue-600 bg-white rounded-lg border border-gray-200"><Icons.Edit3 size={16}/></button>
-                                        </div>
-                                    </div>
-                                ))
+                                    ))}
+                                </div>
                             )}
                         </div>
                     </div>
@@ -412,13 +415,14 @@
             }, []);
 
             return (
-                <div className="min-h-screen bg-slate-50 font-sans text-slate-900 relative overflow-hidden">
+                <div className="min-h-screen bg-slate-50 font-sans text-slate-900 relative overflow-hidden flex flex-col">
                     <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
                         <div className="absolute top-[-50px] left-[-50px] w-96 h-96 bg-red-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
                         <div className="absolute top-[20%] right-[-50px] w-96 h-96 bg-yellow-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{animationDelay: '1s'}}></div>
                     </div>
                     
-                    <header className="p-6 flex justify-between items-center max-w-lg mx-auto relative z-10">
+                    {/* Header Responsive: Centered on desktop */}
+                    <header className="p-6 flex justify-between items-center w-full max-w-7xl mx-auto relative z-10">
                         <div>
                             <h1 className="text-2xl font-black text-slate-800 tracking-tighter flex items-center gap-2">
                                 <span className="text-red-600 italic transform -skew-x-12" style={{ fontFamily: 'Impact, sans-serif' }}>Racer</span> 
@@ -429,9 +433,10 @@
                         <button onClick={() => setShowSettings(true)} className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition text-slate-600 active:scale-95"><Icons.Settings size={20} /></button>
                     </header>
 
-                    <main className="px-5 pb-10 max-w-lg mx-auto space-y-6 relative z-10">
+                    {/* Main Content Responsive: Grid on Desktop */}
+                    <main className="px-5 pb-10 w-full max-w-7xl mx-auto space-y-6 relative z-10 flex-1">
                         {error && (
-                            <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center animate-in fade-in slide-in-from-top-4">
+                            <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center animate-in fade-in slide-in-from-top-4 max-w-lg mx-auto">
                                 <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><Icons.WifiOff size={32} className="text-red-500" /></div>
                                 <h3 className="text-lg font-bold text-red-700 mb-2">เชื่อมต่อไม่ได้</h3>
                                 <p className="text-red-600 text-sm mb-2">{error}</p>
@@ -440,7 +445,7 @@
                         )}
 
                         {!error && cars.length === 0 && !loading && (
-                            <div className="bg-white/80 backdrop-blur border border-slate-200 rounded-3xl p-8 text-center shadow-xl">
+                            <div className="bg-white/80 backdrop-blur border border-slate-200 rounded-3xl p-8 text-center shadow-xl max-w-lg mx-auto">
                                 <div className="bg-blue-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce"><Icons.Database size={32} className="text-blue-500" /></div>
                                 <h3 className="text-xl font-bold text-slate-800 mb-2">พร้อมใช้งาน</h3>
                                 <p className="text-slate-500 text-sm mb-6">กดปุ่มด้านล่างเพื่อดึงข้อมูลล่าสุด</p>
@@ -456,11 +461,11 @@
                         )}
 
                         {cars.length > 0 && (
-                            <React.Fragment>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <DashboardCard title="ประกันภัยรถยนต์" iconName="FileText" expiredCount={stats.insurance.expired} warningCount={stats.insurance.warning} totalCount={cars.length} type="insurance" onClick={() => setSelectedCategory('insurance')} />
                                 <DashboardCard title="ภาษีรถยนต์" iconName="Database" expiredCount={stats.tax.expired} warningCount={stats.tax.warning} totalCount={cars.length} type="tax" onClick={() => setSelectedCategory('tax')} />
                                 <DashboardCard title="รายการทั้งหมด" iconName="List" totalCount={cars.length} type="all" onClick={() => setSelectedCategory('all')} />
-                            </React.Fragment>
+                            </div>
                         )}
                     </main>
 
