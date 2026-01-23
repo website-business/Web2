@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Racer การไฟฟ้า - Fleet Manager</title>
     
     <!-- React & ReactDOM -->
@@ -19,18 +19,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap" rel="stylesheet">
 
     <style>
-        body { font-family: 'Sarabun', sans-serif; }
+        body { font-family: 'Sarabun', sans-serif; -webkit-tap-highlight-color: transparent; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Custom Animations */
-        @keyframes blob {
-            0% { transform: translate(0px, 0px) scale(1); }
-            33% { transform: translate(30px, -50px) scale(1.1); }
-            66% { transform: translate(-20px, 20px) scale(0.9); }
-            100% { transform: translate(0px, 0px) scale(1); }
+        /* Fix Date Input on Mobile */
+        input[type="date"] {
+            -webkit-appearance: none;
+            appearance: none;
+            min-height: 2.5rem;
         }
-        .animate-blob { animation: blob 7s infinite; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 overflow-x-hidden min-h-screen">
@@ -187,31 +185,33 @@
             };
 
             return (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-hidden">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 relative z-10 shadow-2xl animate-in zoom-in-95 duration-200">
+                    
+                    {/* Fixed: Adjusted width to 90% of screen and max-w-sm to allow space on mobile */}
+                    <div className="bg-white rounded-2xl w-[90%] max-w-sm p-5 md:p-6 relative z-10 shadow-2xl animate-in zoom-in-95 duration-200">
                         <h3 className="text-xl font-bold mb-1">แก้ไขข้อมูล</h3>
-                        <p className="text-gray-500 text-sm mb-6">ทะเบียน: <span className="font-bold text-slate-800">{car.plate}</span></p>
+                        <p className="text-gray-500 text-sm mb-6 truncate">ทะเบียน: <span className="font-bold text-slate-800">{car.plate}</span></p>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
                                 <label className="block text-xs font-bold text-gray-400 uppercase mb-1">วันหมดอายุ ประกันภัย</label>
                                 <div className="relative">
-                                    <input type="date" required className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" value={formData.insurance_expire} onChange={e => setFormData({...formData, insurance_expire: e.target.value})} />
-                                    <div className="absolute left-3 top-3.5 text-slate-400"><Icons.Calendar size={18}/></div>
+                                    <input type="date" required className="w-full p-2.5 pl-10 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" value={formData.insurance_expire} onChange={e => setFormData({...formData, insurance_expire: e.target.value})} />
+                                    <div className="absolute left-3 top-2.5 text-slate-400"><Icons.Calendar size={18}/></div>
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-400 uppercase mb-1">วันหมดอายุ ภาษี</label>
                                 <div className="relative">
-                                    <input type="date" required className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none" value={formData.tax_expire} onChange={e => setFormData({...formData, tax_expire: e.target.value})} />
-                                    <div className="absolute left-3 top-3.5 text-slate-400"><Icons.Calendar size={18}/></div>
+                                    <input type="date" required className="w-full p-2.5 pl-10 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm" value={formData.tax_expire} onChange={e => setFormData({...formData, tax_expire: e.target.value})} />
+                                    <div className="absolute left-3 top-2.5 text-slate-400"><Icons.Calendar size={18}/></div>
                                 </div>
                             </div>
                             <div className="flex gap-3 mt-6">
                                 <button type="button" onClick={onClose} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition">ยกเลิก</button>
                                 <button type="submit" disabled={isSaving} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black transition flex items-center justify-center gap-2 disabled:opacity-70">
                                     {isSaving ? <Icons.RefreshCw className="animate-spin" size={18}/> : <Icons.Save size={18}/>}
-                                    {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
+                                    {isSaving ? 'บันทึก' : 'บันทึก'}
                                 </button>
                             </div>
                         </form>
