@@ -1523,6 +1523,89 @@
              });
         }
 
+        // --- NEW FUNCTIONS FOR QR & SCANNER ---
+        function printQRCodes() {
+            const searchText = document.getElementById('machine-search').value.toLowerCase().trim();
+            const filterType = document.getElementById('machine-type-filter').value;
+            
+            // Filter based on alerts.all list logic to match view
+            const filtered = appData.alerts.all.filter(item => {
+                return (!searchText || (item.info['รหัส']||'').toLowerCase().includes(searchText)) && (!filterType || (item.info['ประเภทรถ'] === filterType));
+            });
+
+            if (filtered.length === 0) { alert('ไม่พบข้อมูลที่จะพิมพ์'); return; }
+            if (filtered.length > 50 && !confirm(`ต้องการพิมพ์ QR Code จำนวน ${filtered.length} รายการ?`)) return;
+
+            const printWindow = window.open('', '', 'width=800,height=600');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Print QR Codes</title>
+                    <style>
+                        body { font-family: sans-serif; padding: 20px; }
+                        .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px; }
+                        .qr-item { border: 1px solid #ccc; padding: 10px; text-align: center; page-break-inside: avoid; border-radius: 8px; }
+                        .qr-img { width: 100px; height: 100px; }
+                        .qr-code { font-weight: bold; margin-top: 5px; font-size: 14px; }
+                        .qr-name { font-size: 12px; color: #666; }
+                        @media print { .no-print { display: none; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="no-print" style="margin-bottom: 20px;">
+                        <button onclick="window.print()">พิมพ์ (Print)</button>
+                        <button onclick="window.close()">ปิด (Close)</button>
+                    </div>
+                    <div class="qr-grid">
+                        ${filtered.map(item => `
+                            <div class="qr-item">
+                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(item.info['รหัส'])}" class="qr-img">
+                                <div class="qr-code">${item.info['รหัส']}</div>
+                                <div class="qr-name">${item.info['ทะเบียน']||''}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+
+        function openQRScanner() {
+            document.getElementById('qr-modal').classList.add('show');
+            if(!html5QrCode) html5QrCode = new Html5Qrcode("qr-reader");
+            
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+            .catch(err => {
+                console.error("Error starting scanner", err);
+                alert("ไม่สามารถเปิดกล้องได้: " + err);
+                closeQRModal();
+            });
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            console.log(`Scan result: ${decodedText}`, decodedResult);
+            closeQRModal();
+            // Try to find machine
+            const machine = appData.machines.find(m => m['รหัส'] === decodedText);
+            if(machine) {
+                showMachineDetails(decodedText);
+            } else {
+                alert(`ไม่พบข้อมูลเครื่องจักร: ${decodedText}`);
+            }
+        }
+
+        function closeQRModal() {
+            if (html5QrCode && html5QrCode.isScanning) {
+                html5QrCode.stop().then(() => {
+                    document.getElementById('qr-modal').classList.remove('show');
+                }).catch(err => console.error(err));
+            } else {
+                document.getElementById('qr-modal').classList.remove('show');
+            }
+        }
+
         loadData();
     </script>
 </body>
