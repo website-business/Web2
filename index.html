@@ -1,1612 +1,510 @@
-<!DOCTYPE html>
-<html lang="th" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MACHINERY CONTROL [CRYSTAL]</title>
+import React, { useState, useEffect } from 'react';
+import { 
+  Users, Search, Zap, Wrench, Search as SearchIcon, Shield, 
+  ChevronDown, ChevronRight, ArrowLeft, Edit3, CheckSquare, Activity, Save, 
+  Target, FileText, AlertCircle, Loader2, Database, WifiOff
+} from 'lucide-react';
+
+// --- 1. CONFIG: REAL DATA LINKS ---
+const STAFF_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7_f0P5kNKDtPrfGRP4oxezwethRxQLmKZO8JdNanSLr8rGLIaLRqC6n_NZI0UHLd7yK4s4Kvdl8vw/pub?gid=1930878113&single=true&output=csv";
+const SKILL_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7_f0P5kNKDtPrfGRP4oxezwethRxQLmKZO8JdNanSLr8rGLIaLRqC6n_NZI0UHLd7yK4s4Kvdl8vw/pub?gid=2028292203&single=true&output=csv";
+
+// *** ใส่ URL ของ Google Apps Script ที่คุณให้มา ***
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgejkhJj02SE5SEYhBvVbEvqoULFvC5FzAp8od1ypr1ocxpZt_0vhjMnw2XYkefYN31Q/exec"; 
+
+const EMPTY_MASTER_SKILLS = {
+  electrical: { title: "งานไฟฟ้าลิฟต์", icon: Zap, theme: "yellow", color: "text-yellow-600", bg: "bg-yellow-500", light: "bg-yellow-50", items: [] },
+  mechanical: { title: "งานเครื่องกลลิฟต์", icon: Wrench, theme: "blue", color: "text-blue-600", bg: "bg-blue-500", light: "bg-blue-50", items: [] },
+  troubleshooting: { title: "การวิเคราะห์ปัญหา", icon: SearchIcon, theme: "purple", color: "text-purple-600", bg: "bg-purple-500", light: "bg-purple-50", items: [] },
+  safety: { title: "ความปลอดภัย", icon: Shield, theme: "green", color: "text-green-600", bg: "bg-green-500", light: "bg-green-50", items: [] }
+};
+
+const ROLE_TARGETS = {
+  "Senior Tech": { electrical: 4, mechanical: 4, troubleshooting: 4, safety: 5 },
+  "Junior Tech": { electrical: 2, mechanical: 2, troubleshooting: 2, safety: 3 },
+  "Technician": { electrical: 3, mechanical: 3, troubleshooting: 3, safety: 4 },
+  "Expert/Trainer": { electrical: 5, mechanical: 5, troubleshooting: 5, safety: 5 }
+};
+
+// --- 2. CSV PARSER ENGINE ---
+const parseCSV = (text) => {
+  const rows = text.trim().split('\n');
+  if (rows.length === 0) return [];
+  
+  const headers = rows[0].replace(/^\uFEFF/, '').split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  
+  return rows.slice(1).map(row => {
+    const values = [];
+    let inQuote = false;
+    let currentValue = '';
     
-    <!-- CSS Framework: Tailwind -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Chart Library: Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- CSV Parser: PapaParse -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
-    
-    <!-- QR Code Scanner Library -->
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    
-    <!-- Icons: FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    for (let i = 0; i < row.length; i++) {
+      const char = row[i];
+      if (char === '"') {
+        if (inQuote && row[i+1] === '"') { currentValue += '"'; i++; } 
+        else { inQuote = !inQuote; }
+      } else if (char === ',' && !inQuote) {
+        values.push(currentValue.trim()); currentValue = '';
+      } else { currentValue += char; }
+    }
+    values.push(currentValue.trim());
 
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700&family=Bai+Jamjuree:wght@400;600&display=swap" rel="stylesheet">
+    let obj = {};
+    headers.forEach((h, i) => {
+        let val = values[i] || ''; 
+        if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+        obj[h] = val;
+    });
+    return obj;
+  });
+};
 
-    <style>
-        /* --- CRYSTAL GLASS THEME VARIABLES --- */
-        :root {
-            --bg-deep: #030712;
-            --text-main: #f0f9ff;
-            --text-muted: #94a3b8;
-            --crystal-cyan: #22d3ee;
-            --crystal-purple: #c084fc;
-            --crystal-rose: #fb7185;
-            --crystal-emerald: #34d399;
-            --crystal-amber: #fbbf24;
-            --glass-bg: rgba(255, 255, 255, 0.03);
-            --glass-border: rgba(255, 255, 255, 0.08);
-            --glass-highlight: rgba(255, 255, 255, 0.15);
-            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-            --glass-blur: 20px;
-            --chart-grid: rgba(255, 255, 255, 0.05);
-        }
+// --- 3. DATA HOOK ---
+const useRealData = () => {
+  const [technicians, setTechnicians] = useState([]);
+  const [masterSkills, setMasterSkills] = useState(EMPTY_MASTER_SKILLS);
+  const [userSkillsMap, setUserSkillsMap] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-        body {
-            font-family: 'Bai Jamjuree', sans-serif;
-            background-color: var(--bg-deep);
-            background-image: 
-                radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.15), transparent 50%),
-                radial-gradient(circle at 100% 0%, rgba(192, 132, 252, 0.15), transparent 50%),
-                radial-gradient(circle at 100% 100%, rgba(251, 113, 133, 0.15), transparent 50%),
-                radial-gradient(circle at 0% 100%, rgba(52, 211, 153, 0.15), transparent 50%);
-            background-attachment: fixed;
-            background-size: cover;
-            color: var(--text-main);
-            overflow-x: hidden;
-            min-height: 100vh;
-        }
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const skillRes = await fetch(SKILL_CSV_URL);
+        const skillText = await skillRes.text();
+        const skillRows = parseCSV(skillText);
 
-        /* --- UI Elements --- */
-        .glass-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(var(--glass-blur));
-            -webkit-backdrop-filter: blur(var(--glass-blur));
-            border: 1px solid var(--glass-border);
-            border-top: 1px solid var(--glass-highlight);
-            border-radius: 24px;
-            box-shadow: var(--glass-shadow);
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-        
-        .card-stat { height: 100%; min-height: 130px; }
-
-        .glass-card:hover {
-            transform: translateY(-5px) scale(1.02);
-            background: rgba(255, 255, 255, 0.07);
-            border-color: rgba(255, 255, 255, 0.2);
-            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
-        }
-
-        .btn-crystal {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: var(--text-main);
-            border-radius: 12px;
-            transition: all 0.3s;
-            font-family: 'Bai Jamjuree', sans-serif;
-            font-weight: 500;
-            backdrop-filter: blur(5px);
-            cursor: pointer;
-        }
-        .btn-crystal:hover {
-            background: rgba(255, 255, 255, 0.15);
-            border-color: rgba(255, 255, 255, 0.3);
-            transform: translateY(-2px);
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
-        }
-
-        /* --- View Transition --- */
-        .view-section {
-            transition: opacity 0.3s ease-in-out;
-        }
-        .hidden { display: none !important; opacity: 0; }
-        
-        /* --- Modal --- */
-        .modal-overlay {
-            position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(10px);
-            display: none; justify-content: center; align-items: center; z-index: 100;
-            opacity: 0; transition: opacity 0.3s;
-        }
-        .modal-overlay.show { display: flex; opacity: 1; }
-        .modal-content {
-            background: rgba(20, 20, 30, 0.8);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 24px;
-            width: 95%; max-width: 900px; max-height: 90vh;
-            display: flex; flex-direction: column;
-            transform: scale(0.9); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            overflow: hidden;
-        }
-        .modal-overlay.show .modal-content { transform: scale(1); }
-
-        /* --- Loading --- */
-        .loading-overlay { position: fixed; inset: 0; background: #030712; z-index: 999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .orb-loader { width: 60px; height: 60px; background: radial-gradient(circle, var(--crystal-cyan), var(--crystal-purple)); border-radius: 50%; filter: blur(10px); animation: pulse-orb 1.5s infinite ease-in-out alternate; }
-        @keyframes pulse-orb { 0% { transform: scale(0.8); opacity: 0.7; } 100% { transform: scale(1.2); opacity: 1; } }
-
-        /* Helpers */
-        .text-gradient { background: linear-gradient(to right, var(--crystal-cyan), var(--crystal-purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .stat-value { font-family: 'Outfit', sans-serif; font-weight: 700; }
-        .glow-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 10px currentColor; }
-        .text-cyan { color: var(--crystal-cyan); }
-        .text-rose { color: var(--crystal-rose); }
-        .text-emerald { color: var(--crystal-emerald); }
-        
-        /* Animation */
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
-    </style>
-</head>
-<body class="antialiased text-sm">
-
-    <!-- Loading Screen -->
-    <div id="loading" class="loading-overlay">
-        <div class="orb-loader mb-8"></div>
-        <div class="text-2xl font-light tracking-[0.2em] text-white animate-pulse font-[Outfit]">LOADING SYSTEM</div>
-        <div id="loading-text" class="text-gray-400 mt-2 font-mono text-xs">INITIALIZING...</div>
-        <button id="btn-retry" onclick="location.reload()" class="hidden mt-8 btn-crystal px-8 py-2">RECONNECT</button>
-    </div>
-
-    <!-- MAIN CONTAINER -->
-    <div class="container mx-auto px-4 py-8 max-w-[1600px] relative z-10">
-
-        <!-- VIEW 1: DASHBOARD (Home) -->
-        <div id="view-dashboard" class="view-section">
-            
-            <!-- Header -->
-            <header class="mb-10 flex flex-col md:flex-row justify-between items-center gap-6">
-                <div class="flex items-center gap-5 w-full md:w-auto">
-                    <div class="w-16 h-16 rounded-3xl bg-gradient-to-tr from-[var(--crystal-cyan)] to-[var(--crystal-purple)] flex items-center justify-center shadow-[0_0_30px_rgba(34,211,238,0.3)] text-white">
-                        <i class="fas fa-layer-group text-3xl"></i>
-                    </div>
-                    <div>
-                        <h1 class="text-4xl font-bold text-white leading-none tracking-tight">
-                            Machinery<span class="text-[var(--crystal-cyan)]">.Core</span>
-                        </h1>
-                        <p class="text-gray-400 text-sm mt-1 font-medium tracking-wide">
-                            SITE CONTROL UNIT: ALPHA-01
-                        </p>
-                    </div>
-                </div>
-                
-                <div class="flex items-center gap-4 self-end md:self-center">
-                    <button onclick="openQRScanner()" class="btn-crystal px-6 py-3 flex items-center gap-3 rounded-2xl">
-                        <i class="fas fa-qrcode text-[var(--crystal-emerald)]"></i> สแกน
-                    </button>
-                    <div class="glass-card !min-h-0 px-6 py-3 flex items-center gap-4 rounded-2xl">
-                        <div class="w-2 h-2 bg-[var(--crystal-emerald)] rounded-full animate-pulse shadow-[0_0_10px_currentColor]"></div>
-                        <div class="text-right">
-                            <div class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">DATE</div>
-                            <div class="text-base font-bold text-white font-[Outfit]" id="current-date">--/--/----</div>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <!-- Stats Grid -->
-            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-5 mb-10">
-                <div class="glass-card card-stat p-6 cursor-pointer" onclick="openModal('all')">
-                    <div class="flex justify-between items-start h-full">
-                        <div><div class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Total Units</div><div class="text-4xl stat-value text-white" id="total-machines">-</div></div>
-                        <div class="text-[var(--crystal-cyan)] text-2xl opacity-80"><i class="fas fa-cubes"></i></div>
-                    </div>
-                    <div class="absolute bottom-0 left-0 w-full h-1 bg-[var(--crystal-cyan)] opacity-50"></div>
-                </div>
-                <div class="glass-card card-stat p-6 cursor-pointer" onclick="openModal('alerts')">
-                    <div class="flex flex-col justify-between h-full">
-                        <div class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-2">Alerts <div class="glow-dot text-rose"></div></div>
-                        <div class="space-y-3 mt-2">
-                            <div class="flex justify-between items-center text-sm"><span class="text-[var(--crystal-rose)] font-bold">Expired</span><span class="font-bold text-white text-xl font-[Outfit]" id="val-expired">-</span></div>
-                            <div class="flex justify-between items-center text-sm"><span class="text-[var(--crystal-amber)] font-bold">Warning</span><span class="font-bold text-white text-xl font-[Outfit]" id="val-warning">-</span></div>
-                        </div>
-                    </div>
-                    <div class="absolute bottom-0 left-0 w-full h-1 bg-[var(--crystal-rose)] opacity-50"></div>
-                </div>
-                <div id="card-fuel" class="glass-card card-stat p-6 cursor-pointer" onclick="switchGraphMode('fuel')">
-                    <div class="flex justify-between items-start h-full">
-                        <div class="overflow-hidden"><div class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2" id="label-total-fuel">Fuel Usage</div><div class="text-4xl stat-value text-white truncate" id="total-fuel">-</div></div>
-                        <div class="text-[var(--crystal-emerald)] text-2xl opacity-80"><i class="fas fa-gas-pump"></i></div>
-                    </div>
-                    <div class="absolute bottom-0 left-0 w-full h-1 bg-[var(--crystal-emerald)] opacity-50"></div>
-                </div>
-                <div id="card-maintenance" class="glass-card card-stat p-6 cursor-pointer" onclick="switchGraphMode('maintenance')">
-                    <div class="flex justify-between items-start h-full">
-                        <div class="overflow-hidden"><div class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2" id="label-total-maint">Maintenance</div><div class="text-4xl stat-value text-white truncate" id="total-maintenance">...</div></div>
-                        <div class="text-[var(--crystal-purple)] text-2xl opacity-80"><i class="fas fa-wrench"></i></div>
-                    </div>
-                    <div class="absolute bottom-0 left-0 w-full h-1 bg-[var(--crystal-purple)] opacity-50"></div>
-                </div>
-                <!-- Project Card -> Opens Project Page -->
-                <div id="card-project" class="glass-card card-stat p-6 cursor-pointer" onclick="openModal('project')">
-                    <div class="flex justify-between items-start h-full">
-                        <div class="overflow-hidden"><div class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Projects</div><div class="text-4xl stat-value text-white" id="total-projects">-</div></div>
-                        <div class="text-[var(--crystal-amber)] text-2xl opacity-80"><i class="fas fa-building"></i></div>
-                    </div>
-                    <div class="absolute bottom-0 left-0 w-full h-1 bg-[var(--crystal-amber)] opacity-50"></div>
-                </div>
-            </div>
-
-            <!-- Dashboard Charts -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div class="glass-card p-8 rounded-3xl flex flex-col lg:col-span-2">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
-                        <div>
-                            <div class="text-[var(--crystal-cyan)] font-bold text-xs tracking-widest mb-2 uppercase">Timeline Analysis</div>
-                            <h2 class="text-3xl font-bold text-white flex items-center gap-3"><span id="chart-title">สถิติน้ำมันเชื้อเพลิง</span></h2>
-                            <div id="chart-breadcrumb" class="text-sm text-gray-400 mt-2 flex items-center gap-2 font-medium"><div class="glow-dot text-emerald"></div>ระบบพร้อมทำงาน</div>
-                        </div>
-                        <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-                            <button id="chart-home-btn" class="hidden btn-crystal px-4 py-2 text-xs" title="หน้าแรก"><i class="fas fa-home"></i></button>
-                            <button id="chart-back-btn" class="hidden btn-crystal px-4 py-2 text-xs" title="ย้อนกลับ"><i class="fas fa-arrow-left"></i> ย้อนกลับ</button>
-                            <div class="relative group w-full sm:w-auto">
-                                <select id="machine-select" class="appearance-none bg-white/5 border border-white/10 text-white py-2.5 px-5 pr-10 rounded-xl text-sm focus:outline-none focus:border-[var(--crystal-cyan)] w-full sm:w-60 cursor-pointer hover:bg-white/10 transition font-medium"><option value="ALL">เครื่องจักรทั้งหมด</option></select>
-                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400"><i class="fas fa-chevron-down text-xs"></i></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="relative flex-grow w-full min-h-[420px] rounded-2xl overflow-hidden">
-                        <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px); background-size: 20px 20px;"></div>
-                        <canvas id="trendChart" class="relative z-10"></canvas>
-                    </div>
-                </div>
-                <div class="glass-card p-8 rounded-3xl flex flex-col">
-                    <div class="mb-8">
-                        <div class="text-[var(--crystal-amber)] font-bold text-xs tracking-widest mb-2 uppercase">Ranking</div>
-                        <h2 class="text-3xl font-bold text-white">TOP 10</h2>
-                        <div class="text-sm text-gray-400 mt-2">จัดอันดับตามช่วงเวลา</div>
-                    </div>
-                    <div class="relative flex-grow w-full min-h-[420px]"><canvas id="rankChart"></canvas></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- VIEW 2: PROJECT PAGE (Separate Page) -->
-        <div id="view-project" class="view-section hidden">
-            <!-- Project Header -->
-            <header class="mb-8 flex flex-col md:flex-row justify-between items-center gap-6 pb-6 border-b border-white/10">
-                <div class="flex items-center gap-5 w-full md:w-auto">
-                    <button onclick="backToDashboard()" class="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 flex items-center justify-center text-white transition hover:-translate-x-1">
-                        <i class="fas fa-arrow-left text-xl"></i>
-                    </button>
-                    <div>
-                        <div class="text-[var(--crystal-amber)] text-xs font-bold tracking-widest mb-1">PROJECT DETAILS</div>
-                        <h1 class="text-3xl font-bold text-white leading-tight" id="project-page-title">Project Name</h1>
-                    </div>
-                </div>
-                <div class="flex gap-4">
-                     <div class="glass-card !min-h-0 px-6 py-3 flex flex-col justify-center rounded-2xl">
-                         <div class="text-[10px] text-gray-400 uppercase font-bold">TOTAL FUEL</div>
-                         <div class="text-xl font-bold text-[var(--crystal-emerald)] font-[Outfit]" id="project-total-fuel">0 L</div>
-                     </div>
-                     <div class="glass-card !min-h-0 px-6 py-3 flex flex-col justify-center rounded-2xl">
-                         <div class="text-[10px] text-gray-400 uppercase font-bold">TOTAL COST</div>
-                         <div class="text-xl font-bold text-[var(--crystal-purple)] font-[Outfit]" id="project-total-cost">0 ฿</div>
-                     </div>
-                </div>
-            </header>
-
-            <!-- Project Controls -->
-            <div class="flex flex-wrap gap-4 justify-between items-center mb-8">
-                 <div class="flex bg-white/5 p-1.5 rounded-xl border border-white/10 backdrop-blur-md">
-                     <button class="px-6 py-2 rounded-lg text-sm font-bold transition bg-[var(--crystal-emerald)] text-black shadow-lg shadow-emerald-500/20" onclick="setProjectPageMode('fuel', this)" id="btn-proj-mode-fuel">
-                        <i class="fas fa-gas-pump mr-2"></i>น้ำมัน
-                     </button>
-                     <button class="px-6 py-2 rounded-lg text-sm font-bold transition text-gray-400 hover:text-white" onclick="setProjectPageMode('maint', this)" id="btn-proj-mode-maint">
-                        <i class="fas fa-wrench mr-2"></i>ค่าซ่อม
-                     </button>
-                 </div>
-                 
-                 <div class="flex gap-3">
-                    <div id="project-breadcrumb" class="bg-white/5 px-4 py-2 rounded-xl text-sm text-gray-300 border border-white/10 flex items-center gap-2">
-                        <i class="fas fa-calendar-alt"></i> รายปี
-                    </div>
-                    <button id="btn-proj-back-level" onclick="stepBackProjectCharts()" class="hidden btn-crystal px-4 py-2 text-sm">
-                        <i class="fas fa-level-up-alt mr-2"></i> ย้อนกลับ
-                    </button>
-                 </div>
-            </div>
-
-            <!-- Project Charts -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <!-- Project Timeline -->
-                <div class="glass-card p-8 rounded-3xl flex flex-col lg:col-span-2">
-                     <div class="mb-6">
-                        <h3 class="text-2xl font-bold text-white">Project Timeline</h3>
-                        <div class="text-sm text-gray-400 mt-1">แนวโน้มการใช้งานตามช่วงเวลา</div>
-                     </div>
-                     <div class="relative flex-grow w-full min-h-[420px] rounded-2xl overflow-hidden bg-black/20 border border-white/5">
-                        <canvas id="pageProjectChart"></canvas>
-                     </div>
-                </div>
-
-                <!-- Project Ranking -->
-                <div class="glass-card p-8 rounded-3xl flex flex-col">
-                     <div class="mb-6">
-                        <h3 class="text-2xl font-bold text-white">Top 10 Ranking</h3>
-                        <div class="text-sm text-gray-400 mt-1">เครื่องจักรที่ใช้งานสูงสุดในโครงการนี้</div>
-                     </div>
-                     <div class="relative flex-grow w-full min-h-[420px] rounded-2xl overflow-hidden bg-black/20 border border-white/5">
-                        <canvas id="pageProjectRankChart"></canvas>
-                     </div>
-                </div>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- Modals (Popup) -->
-    <div id="modal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="bg-white/5 border-b border-white/5 px-6 py-4 flex justify-between items-center backdrop-blur-md">
-                <h3 class="text-xl font-bold text-white flex items-center gap-3 font-[Outfit]">
-                    <span id="modal-title">Details</span>
-                </h3>
-                <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition text-white"><i class="fas fa-times"></i></button>
-            </div>
-            
-            <div id="modal-filter-bar" class="px-6 py-4 bg-black/20 border-b border-white/5 hidden">
-                <div class="flex flex-col sm:flex-row gap-3">
-                    <div class="relative flex-grow">
-                        <i class="fas fa-search absolute left-4 top-3 text-gray-400"></i>
-                        <input type="text" id="machine-search" oninput="filterModalList()" placeholder="ค้นหา..." class="w-full bg-white/5 border border-white/10 text-white pl-10 pr-4 py-2.5 rounded-xl focus:outline-none focus:border-[var(--crystal-cyan)] focus:bg-white/10 transition placeholder-gray-500">
-                    </div>
-                    <div class="relative min-w-[160px]">
-                        <select id="machine-type-filter" onchange="filterModalList()" class="w-full appearance-none bg-white/5 border border-white/10 text-white pl-4 pr-10 py-2.5 rounded-xl focus:outline-none focus:border-[var(--crystal-cyan)] cursor-pointer"><option value="">ทั้งหมด</option></select>
-                        <i class="fas fa-chevron-down absolute right-4 top-3.5 text-gray-400 pointer-events-none text-xs"></i>
-                    </div>
-                    <button id="btn-print-qr" onclick="printQRCodes()" class="btn-crystal px-5 flex items-center gap-2 whitespace-nowrap hidden"><i class="fas fa-print"></i> พิมพ์ QR</button>
-                </div>
-            </div>
-
-            <div class="p-6 overflow-y-auto" style="min-height: 200px;" id="modal-body-container">
-                <div id="modal-body" class="space-y-3"></div>
-            </div>
-        </div>
-    </div>
-    
-    <div id="qr-modal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 400px;">
-            <div class="bg-white/5 px-6 py-4 flex justify-between items-center border-b border-white/5">
-                <h3 class="text-lg font-bold text-[var(--crystal-emerald)] flex items-center gap-2"><i class="fas fa-qrcode"></i> SCAN QR</h3>
-                <button onclick="closeQRModal()" class="text-gray-400 hover:text-white transition"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="p-6 bg-black/40 flex justify-center relative overflow-hidden rounded-b-lg">
-                <div id="qr-reader" style="width: 100%; border-radius: 12px; overflow: hidden;"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="sub-modal" class="modal-overlay" style="z-index: 200;">
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="bg-white/5 px-6 py-4 flex justify-between items-center border-b border-white/5">
-                <h3 class="text-lg font-bold flex items-center gap-2 text-white"><span class="w-1.5 h-6 bg-[var(--crystal-rose)] rounded-full"></span><span id="sub-modal-title">Daily Log</span></h3>
-                <button onclick="closeSubModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition text-white"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="p-6 overflow-y-auto" style="min-height: 200px;" id="sub-modal-body"></div>
-        </div>
-    </div>
-
-    <script>
-        // --- Configuration ---
-        Chart.defaults.font.family = "'Bai Jamjuree', sans-serif";
-        Chart.defaults.font.size = 12;
-        Chart.defaults.color = '#94a3b8';
-        Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.05)';
-        Chart.defaults.responsive = true;
-        Chart.defaults.maintainAspectRatio = false;
-
-        const SHEET_URLS = {
-            machines: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRLxlqlfXntTk-z4x45kGjZ1OjHFnpCeaqjGZGpkfohr3difiJQsI-p-3iZwgyM7UO35kRztltMKgbd/pub?gid=0&single=true&output=csv',
-            fuel: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRLxlqlfXntTk-z4x45kGjZ1OjHFnpCeaqjGZGpkfohr3difiJQsI-p-3iZwgyM7UO35kRztltMKgbd/pub?gid=700157187&single=true&output=csv',
-            maintenance: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRLxlqlfXntTk-z4x45kGjZ1OjHFnpCeaqjGZGpkfohr3difiJQsI-p-3iZwgyM7UO35kRztltMKgbd/pub?gid=1964968763&single=true&output=csv'
+        const newMasterSkills = {
+            electrical: { ...EMPTY_MASTER_SKILLS.electrical, items: [] },
+            mechanical: { ...EMPTY_MASTER_SKILLS.mechanical, items: [] },
+            troubleshooting: { ...EMPTY_MASTER_SKILLS.troubleshooting, items: [] },
+            safety: { ...EMPTY_MASTER_SKILLS.safety, items: [] },
         };
 
-        let appData = { machines: [], fuel: [], maintenance: [], alerts: { expired: [], warning: [], all: [] } };
-        let currentGraphMode = 'fuel'; 
-        let chartState = { trendInstance: null, rankInstance: null, view: 'year', selectedMachine: 'ALL', selectedProject: 'ALL', selectedYear: null, selectedMonth: null, selectedDay: null };
-        let lastModalType = 'all'; 
-        
-        // Modal Chart Instances
-        let modalFuelChartInstance = null;
-        let modalMaintChartInstance = null;
-        let modalChartState = { view: 'year', year: null, month: null, machineCode: null }; 
-        let subModalChartInstance = null; 
-        
-        // Page Project Chart Instances (New View)
-        let pageProjectChartInstance = null;
-        let pageProjectRankInstance = null;
-        let pageProjectState = { projectName: null, graphMode: 'fuel', view: 'year', year: null, month: null };
-        
-        let modalProjectChartInstance = null;
-        let modalProjectRankChartInstance = null;
+        skillRows.forEach(row => {
+            const code = row['Skill_Code'] || '';
+            const firstChar = code.charAt(0).toUpperCase();
+            let catKey = '';
+            if (firstChar === 'E') catKey = 'electrical';
+            else if (firstChar === 'M') catKey = 'mechanical';
+            else if (firstChar === 'T') catKey = 'troubleshooting';
+            else if (firstChar === 'S') catKey = 'safety';
 
-        let html5QrCode = null;
-
-        // --- Helpers ---
-        function parseDate(dateStr) {
-            if (!dateStr) return null;
-            if (dateStr.includes('/')) {
-                const parts = dateStr.split('/');
-                if (parts.length === 3) {
-                    let day = parseInt(parts[0], 10);
-                    let month = parseInt(parts[1], 10) - 1; 
-                    let year = parseInt(parts[2], 10);
-                    if (year > 2400) year -= 543;
-                    const d = new Date(year, month, day);
-                    if (!isNaN(d.getTime())) return d;
-                }
+            if (catKey && newMasterSkills[catKey]) {
+                const levelMatch = code.match(/[A-Z](\d+)\./); 
+                const level = levelMatch ? parseInt(levelMatch[1]) : 1;
+                newMasterSkills[catKey].items.push({
+                    id: code,
+                    level: level,
+                    text: row['Description'] || 'No Description',
+                    weight: parseInt(row['Max_Score']) || 1
+                });
             }
-            let d = new Date(dateStr);
-            if (!isNaN(d.getTime())) {
-                 if (d.getFullYear() > 2400) { d.setFullYear(d.getFullYear() - 543); }
-                 return d;
-            }
-            return null;
-        }
-        function formatDateTH(date) { return date ? date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '-'; }
-        function formatNumber(num) { return num.toLocaleString('th-TH', { maximumFractionDigits: 0 }); }
-        function parseNumber(val) {
-            if (typeof val === 'number') return val;
-            if (!val) return 0;
-            return parseFloat(String(val).replace(/,/g, '')) || 0;
-        }
-        function getCssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+        });
 
-        // --- Core Functions ---
-        function updateChartColors() {
-            if(currentGraphMode === 'fuel') updateChart();
-            else updateChart();
-        }
+        const staffRes = await fetch(STAFF_CSV_URL);
+        const staffText = await staffRes.text();
+        const staffRows = parseCSV(staffText);
         
-        function updateModalUI() {
-             const isRoot = modalChartState.view === 'year';
-             const btnBack = document.getElementById('btn-modal-drill-back');
-             if(btnBack) btnBack.classList.toggle('hidden', isRoot);
-        }
+        const loadedTechs = [];
+        const loadedUserSkills = {};
 
-        // --- Navigation ---
-        function openProjectPage(projName) {
-            closeModal();
-
-            // Hide Dashboard, Show Project Page
-            document.getElementById('view-dashboard').classList.add('hidden');
-            document.getElementById('view-project').classList.remove('hidden');
-            
-            // Scroll to top
-            window.scrollTo(0, 0);
-
-            // Set Data
-            document.getElementById('project-page-title').innerText = projName;
-            
-            // Calc stats
-            let totalFuel = 0, totalCost = 0;
-            appData.fuel.forEach(f => { if(f['โครงการ'] === projName) totalFuel += parseNumber(f['ปริมาณ(ลิตร)']); });
-            appData.maintenance.forEach(m => { if(m['โครงการ'] === projName) totalCost += parseNumber(m['ค่าซ่อมบำรุง']); });
-            
-            document.getElementById('project-total-fuel').innerText = formatNumber(totalFuel) + " L";
-            document.getElementById('project-total-cost').innerText = formatNumber(totalCost) + " ฿";
-
-            // Init State
-            pageProjectState = { projectName: projName, graphMode: 'fuel', view: 'year', year: null, month: null };
-            
-            setTimeout(() => {
-                setProjectPageMode('fuel', document.getElementById('btn-proj-mode-fuel'));
-            }, 50);
-        }
-
-        function backToDashboard() {
-            document.getElementById('view-project').classList.add('hidden');
-            document.getElementById('view-dashboard').classList.remove('hidden');
-            
-            // Destroy page charts to save memory
-            if (pageProjectChartInstance) { pageProjectChartInstance.destroy(); pageProjectChartInstance = null; }
-            if (pageProjectRankInstance) { pageProjectRankInstance.destroy(); pageProjectRankInstance = null; }
-            
-            updateChartColors();
-        }
-
-        function setProjectPageMode(mode, btn) {
-            pageProjectState.graphMode = mode;
-            
-            // Visual Update
-            const btnFuel = document.getElementById('btn-proj-mode-fuel');
-            const btnMaint = document.getElementById('btn-proj-mode-maint');
-            
-            // Reset styles
-            btnFuel.className = "px-6 py-2 rounded-lg text-sm font-bold transition text-gray-400 hover:text-white";
-            btnMaint.className = "px-6 py-2 rounded-lg text-sm font-bold transition text-gray-400 hover:text-white";
-            
-            // Active style
-            if (mode === 'fuel') {
-                btnFuel.className = "px-6 py-2 rounded-lg text-sm font-bold transition bg-[var(--crystal-emerald)] text-black shadow-lg shadow-emerald-500/20";
-            } else {
-                btnMaint.className = "px-6 py-2 rounded-lg text-sm font-bold transition bg-[var(--crystal-purple)] text-black shadow-lg shadow-purple-500/20";
-            }
-            
-            // Reset View
-            pageProjectState.view = 'year';
-            pageProjectState.year = null;
-            pageProjectState.month = null;
-            
-            updateProjectPageUI();
-            updateProjectPageCharts();
-        }
-
-        function updateProjectPageUI() {
-             const isRoot = pageProjectState.view === 'year';
-             const btnBack = document.getElementById('btn-proj-back-level');
-             if(btnBack) btnBack.classList.toggle('hidden', isRoot);
-
-             // Update Breadcrumb
-             const breadcrumb = document.getElementById('project-breadcrumb');
-             if (pageProjectState.view === 'year') {
-                 breadcrumb.innerHTML = `<i class="fas fa-calendar-alt"></i> ภาพรวมรายปี`;
-             } else if (pageProjectState.view === 'month') {
-                 breadcrumb.innerHTML = `<i class="fas fa-calendar-day"></i> ปี ${pageProjectState.year}`;
-             } else if (pageProjectState.view === 'day') {
-                 const mName = new Date(pageProjectState.year, pageProjectState.month).toLocaleString('th-TH', { month: 'long' });
-                 breadcrumb.innerHTML = `<i class="fas fa-clock"></i> ${mName} ${pageProjectState.year}`;
-             }
-        }
-
-        function stepBackProjectCharts() {
-            if (pageProjectState.view === 'day') {
-                pageProjectState.view = 'month';
-                pageProjectState.month = null;
-            } else if (pageProjectState.view === 'month') {
-                pageProjectState.view = 'year';
-                pageProjectState.year = null;
-            }
-            updateProjectPageUI();
-            updateProjectPageCharts();
-        }
-
-        function updateProjectPageCharts() {
-            renderPageProjectChart();
-            renderPageProjectRankChart();
-        }
-
-        // --- Other Functions ---
-        function switchGraphMode(mode) { 
-            currentGraphMode = mode; 
-            if (mode === 'fuel') { 
-                document.getElementById('card-fuel').style.borderColor = 'var(--crystal-emerald)';
-                document.getElementById('card-maintenance').style.borderColor = 'var(--glass-border)';
-                document.getElementById('chart-title').innerText = 'สถิติน้ำมันเชื้อเพลิง'; 
-            } else { 
-                document.getElementById('card-fuel').style.borderColor = 'var(--glass-border)';
-                document.getElementById('card-maintenance').style.borderColor = 'var(--crystal-purple)';
-                document.getElementById('chart-title').innerText = 'ค่าซ่อมบำรุงรายเดือน'; 
-            } 
-            resetChartToYear(); 
-            // Update stats when switching modes
-            updateAllStats();
-        }
-
-        function resetChartToYear() { 
-            chartState.view = 'year'; 
-            chartState.selectedYear = null; 
-            chartState.selectedMonth = null; 
-            chartState.selectedDay = null; 
-            updateChart();
-            updateAllStats(); 
-        }
-
-        function goBackLevel() { 
-            if (chartState.view === 'single_day') { 
-                chartState.view = 'day'; 
-                chartState.selectedDay = null; 
-            } else if (chartState.view === 'day') { 
-                chartState.view = 'month'; 
-                chartState.selectedMonth = null; 
-            } else if (chartState.view === 'month') { 
-                chartState.view = 'year'; 
-                chartState.selectedYear = null; 
-            } 
-            updateChart();
-            updateAllStats(); 
-        }
-        
-        function setupFuelChart() { 
-            document.getElementById('chart-back-btn').addEventListener('click', goBackLevel); 
-            document.getElementById('chart-home-btn').addEventListener('click', () => { 
-                chartState.selectedMachine = 'ALL'; 
-                chartState.selectedProject = 'ALL'; 
-                document.getElementById('machine-select').value = 'ALL'; 
-                resetChartToYear(); 
-            }); 
-            document.getElementById('machine-select').addEventListener('change', (e) => { 
-                chartState.selectedMachine = e.target.value; 
-                resetChartToYear(); 
-            }); 
-            updateChart(); 
-        }
-
-        // --- Chart Click Handlers (Dashboard) ---
-        function handleTrendClick(index, labels) {
-            if (chartState.view === 'year') {
-                chartState.selectedYear = parseInt(labels[index]); 
-                chartState.view = 'month'; 
-                updateChart(); 
-                updateAllStats();
-            } else if (chartState.view === 'month') {
-                chartState.selectedMonth = index; 
-                chartState.view = 'day'; 
-                updateChart(); 
-                updateAllStats();
-            } else if (chartState.view === 'day' || chartState.view === 'single_day') {
-                 showMainDailyDetail(index + 1);
-            }
-        }
-        
-        function handleRankClick(index, labels) {
-            const machineCode = labels[index];
-            let context = { view: 'year' }; 
-            if (chartState.view === 'month') { context = { view: 'month', year: chartState.selectedYear }; } 
-            else if (chartState.view === 'day' || chartState.view === 'single_day') { context = { view: 'day', year: chartState.selectedYear, month: chartState.selectedMonth }; }
-            showMachineDetails(machineCode, context);
-        }
-
-        function showMainDailyDetail(day) {
-            const year = chartState.selectedYear;
-            const month = chartState.selectedMonth;
-            const mode = currentGraphMode;
-            
-            let dataSource = mode === 'fuel' ? appData.fuel : appData.maintenance;
-            let valKey = mode === 'fuel' ? 'ปริมาณ(ลิตร)' : 'ค่าซ่อมบำรุง';
-            let unit = mode === 'fuel' ? 'L' : '฿';
-            let chartColor = mode === 'fuel' ? getCssVar('--crystal-emerald') : getCssVar('--crystal-purple');
-
-            const dailyItems = dataSource.filter(item => {
-                const d = parseDate(item['วันที่']);
-                if (!d) return false;
-                let match = d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
-                if (chartState.selectedProject !== 'ALL' && item['โครงการ'] !== chartState.selectedProject) match = false;
-                if (chartState.selectedMachine !== 'ALL' && item['รหัสรถ'] !== chartState.selectedMachine) match = false;
-                return match;
+        staffRows.forEach(row => {
+            const techId = row['Tech_ID'];
+            if (!techId) return;
+            loadedTechs.push({
+                id: techId,
+                name: row['Name_TH'] || 'Unknown',
+                team: row['Team'] || row['Team_Zone'] || '-',
+                position: row['Position'] || 'Technician',
+                avatar: row['Avatar_Color'] || 'bg-slate-500'
             });
-
-            const dateStr = `${day}/${month+1}/${year}`;
-            document.getElementById('sub-modal-title').innerText = `วันที่ ${dateStr}`;
-            const container = document.getElementById('sub-modal-body');
-            
-            if (subModalChartInstance) { subModalChartInstance.destroy(); subModalChartInstance = null; }
-
-            if (dailyItems.length === 0) {
-                container.innerHTML = `<div class="text-center text-[var(--text-muted)] py-10">ไม่มีข้อมูลในวันนี้</div>`;
-            } else {
-                const grouped = {};
-                dailyItems.forEach(item => {
-                    const val = parseFloat(item[valKey]) || 0;
-                    const machine = item['รหัสรถ'] || 'ไม่ระบุ';
-                    grouped[machine] = (grouped[machine] || 0) + val;
-                });
-
-                const sorted = Object.entries(grouped).sort(([,a], [,b]) => b - a);
-                const labels = sorted.map(k => k[0]);
-                const data = sorted.map(k => k[1]);
-
-                const dynamicHeight = Math.max(300, labels.length * 40);
-                container.innerHTML = `<div style="position: relative; height: ${dynamicHeight}px; width: 100%;"><canvas id="subModalChart"></canvas></div>`;
-
-                const ctx = document.getElementById('subModalChart').getContext('2d');
-                subModalChartInstance = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: unit,
-                            data: data,
-                            backgroundColor: chartColor,
-                            borderRadius: 6,
-                            barPercentage: 0.6
-                        }]
-                    },
-                    options: {
-                        indexAxis: 'y',
-                        maintainAspectRatio: false,
-                        responsive: true,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
-                            y: { grid: { display: false }, ticks: { color: '#fff', font: { weight: 'bold' } } }
-                        },
-                        onClick: (e, activeEls) => {
-                            if (activeEls.length > 0) {
-                                const index = activeEls[0].index;
-                                const machineCode = labels[index];
-                                closeSubModal();
-                                showMachineDetails(machineCode, { view: 'day', year: year, month: month });
-                            }
-                        },
-                        onHover: (e, els) => e.native.target.style.cursor = els[0] ? 'pointer' : 'default'
-                    }
-                });
-            }
-            document.getElementById('sub-modal').classList.add('show');
-        }
-
-        function closeSubModal() {
-            document.getElementById('sub-modal').classList.remove('show');
-            if (subModalChartInstance) { subModalChartInstance.destroy(); subModalChartInstance = null; }
-        }
-        
-        function showProjectDailyList(dayIndex) {
-            const day = dayIndex + 1;
-            const year = pageProjectState.year;
-            const month = pageProjectState.month;
-            const project = pageProjectState.projectName;
-            const mode = pageProjectState.graphMode; 
-            
-            let dataSource = mode === 'fuel' ? appData.fuel : appData.maintenance;
-            let valKey = mode === 'fuel' ? 'ปริมาณ(ลิตร)' : 'ค่าซ่อมบำรุง';
-            let unit = mode === 'fuel' ? 'L' : '฿';
-            let chartColor = mode === 'fuel' ? getCssVar('--crystal-emerald') : getCssVar('--crystal-purple');
-
-            // Filter
-            const dailyItems = dataSource.filter(item => {
-                const d = parseDate(item['วันที่']);
-                if (!d) return false;
-                let match = d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
-                if (project) match = match && item['โครงการ'] === project;
-                return match;
+            const mySkills = [];
+            Object.keys(row).forEach(key => {
+                const isSkillCol = /^[EMTS]\d+\.\d+$/.test(key); 
+                const isChecked = row[key]?.toUpperCase() === 'TRUE';
+                if (isSkillCol && isChecked) mySkills.push(key);
             });
-            
-            const dateStr = `${day}/${month+1}/${year}`;
-            document.getElementById('sub-modal-title').innerText = `รายละเอียดวันที่ ${dateStr}`;
-            const container = document.getElementById('sub-modal-body');
-            
-            if (subModalChartInstance) { subModalChartInstance.destroy(); subModalChartInstance = null; }
+            loadedUserSkills[techId] = mySkills;
+        });
 
-            if (dailyItems.length === 0) {
-                container.innerHTML = `<div class="text-center text-[var(--text-muted)] py-10">ไม่มีข้อมูลในวันนี้</div>`;
-            } else {
-                const grouped = {};
-                dailyItems.forEach(item => {
-                    const val = parseFloat(item[valKey]) || 0;
-                    const machine = item['รหัสรถ'] || 'ไม่ระบุ';
-                    grouped[machine] = (grouped[machine] || 0) + val;
-                });
-                const sorted = Object.entries(grouped).sort(([,a], [,b]) => b - a);
-                const labels = sorted.map(k => k[0]);
-                const data = sorted.map(k => k[1]);
-                const dynamicHeight = Math.max(300, labels.length * 40);
-                container.innerHTML = `<div style="position: relative; height: ${dynamicHeight}px; width: 100%;"><canvas id="subModalChart"></canvas></div>`;
-                const ctx = document.getElementById('subModalChart').getContext('2d');
-                subModalChartInstance = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: unit,
-                            data: data,
-                            backgroundColor: chartColor,
-                            borderRadius: 6,
-                            barPercentage: 0.6
-                        }]
-                    },
-                    options: {
-                        indexAxis: 'y',
-                        maintainAspectRatio: false,
-                        responsive: true,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
-                            y: { grid: { display: false }, ticks: { color: '#fff', font: { weight: 'bold' } } }
-                        },
-                        onClick: (e, activeEls) => {
-                            if (activeEls.length > 0) {
-                                const index = activeEls[0].index;
-                                const machineCode = labels[index];
-                                closeSubModal();
-                                showMachineDetails(machineCode, { view: 'day', year: year, month: month });
-                            }
-                        },
-                        onHover: (e, els) => e.native.target.style.cursor = els[0] ? 'pointer' : 'default'
-                    }
-                });
-            }
-            document.getElementById('sub-modal').classList.add('show');
-        }
-        
-        function openModal(type) {
-            cleanupModalCharts();
-            lastModalType = type;
-            const modal = document.getElementById('modal'), title = document.getElementById('modal-title'), body = document.getElementById('modal-body');
-            body.innerHTML = '';
-            document.getElementById('modal-filter-bar').classList.add('hidden');
+        setMasterSkills(newMasterSkills);
+        setTechnicians(loadedTechs);
+        setUserSkillsMap(loadedUserSkills);
+        setLoading(false);
+      } catch (err) {
+        console.error("Critical Error:", err);
+        setError("โหลดข้อมูลไม่สำเร็จ: " + err.message);
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
-            if (type === 'alerts') {
-                title.innerText = 'รายการแจ้งเตือน';
-                body.innerHTML = `
-                    <div class="flex gap-2 mb-4 border-b border-white/10 pb-2">
-                        <button id="tab-expired" onclick="switchAlertTab('expired')" class="flex-1 py-2 text-sm border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition rounded-xl">หมดอายุ (${appData.alerts.expired.length})</button>
-                        <button id="tab-warning" onclick="switchAlertTab('warning')" class="flex-1 py-2 text-sm border border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black transition rounded-xl">ใกล้หมด (${appData.alerts.warning.length})</button>
-                    </div>
-                    <div id="alert-list-container"></div>
-                `;
-                setTimeout(() => switchAlertTab('expired'), 0);
-            } else if (type === 'project') {
-                title.innerText = 'ภาพรวมโครงการ';
-                const projStats = {};
-                const addStat = (p, f, c) => { if(!p) p='N/A'; if(!projStats[p]) projStats[p]={fuel:0,cost:0,name:p}; projStats[p].fuel+=f; projStats[p].cost+=c; };
-                appData.fuel.forEach(f=>addStat(f['โครงการ'],parseNumber(f['ปริมาณ(ลิตร)']),0));
-                appData.maintenance.forEach(m=>addStat(m['โครงการ'],0,parseNumber(m['ค่าซ่อมบำรุง'])));
-                const projects = Object.values(projStats).sort((a,b)=>b.cost-a.cost);
-                body.innerHTML = projects.map(p => `
-                    <div onclick="openProjectPage('${p.name}')" class="border border-white/10 bg-white/5 p-4 mb-3 hover:border-[var(--crystal-cyan)] hover:bg-white/10 transition rounded-xl cursor-pointer group backdrop-blur-sm">
-                        <div class="flex justify-between text-lg font-semibold text-white"><span>${p.name}</span><i class="fas fa-chevron-right opacity-0 group-hover:opacity-100 transition"></i></div>
-                        <div class="flex justify-between text-sm mt-2 text-gray-400">
-                            <span><i class="fas fa-gas-pump mr-2 text-[var(--crystal-emerald)]"></i> ${formatNumber(p.fuel)}</span>
-                            <span><i class="fas fa-wrench mr-2 text-[var(--crystal-purple)]"></i> ${formatNumber(p.cost)}</span>
+  return { technicians, masterSkills, userSkillsMap, loading, error };
+};
+
+// --- 4. CALCULATIONS ---
+const calculateScore = (categoryKey, completedIds, masterSkills) => {
+  const category = masterSkills[categoryKey];
+  if (!category || !category.items || category.items.length === 0) {
+      return { userScore: 0, totalWeight: 1, normalized: 0, percentage: 0 };
+  }
+  const totalWeight = category.items.reduce((sum, item) => sum + item.weight, 0);
+  const userScore = category.items.reduce((sum, item) => {
+    return completedIds.includes(item.id) ? sum + item.weight : sum;
+  }, 0);
+  const normalized = totalWeight === 0 ? 0 : (userScore / totalWeight) * 5;
+  const percentage = totalWeight === 0 ? 0 : Math.round((userScore / totalWeight) * 100);
+  return { userScore, totalWeight, normalized, percentage };
+};
+
+// --- 5. UI COMPONENTS ---
+
+const RadarChart = ({ scores, targetScores }) => {
+  const size = 200; const center = size/2; const radius = 80; const max = 5;
+  const getPoint = (val, angle) => `${center + (val/max)*radius * Math.cos(angle)},${center + (val/max)*radius * Math.sin(angle)}`;
+  const angles = [-Math.PI/2, 0, Math.PI/2, Math.PI];
+  
+  const actualPoly = angles.map((a, i) => getPoint(scores[['electrical','mechanical','safety','troubleshooting'][i]].normalized, a)).join(' ');
+  const targetPoly = angles.map((a, i) => {
+      const keys = ['electrical', 'mechanical', 'safety', 'troubleshooting'];
+      return getPoint(targetScores ? targetScores[keys[i]] : 3, a);
+  }).join(' ');
+
+  return (
+    <div className="relative flex justify-center items-center py-4">
+      <svg width={size} height={size} className="overflow-visible">
+        {[1,2,3,4,5].map(l => <circle key={l} cx={center} cy={center} r={(l/max)*radius} fill="none" stroke="#e2e8f0" strokeDasharray="4 4"/>)}
+        <polygon points={targetPoly} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="5 5" />
+        <polygon points={actualPoly} fill="rgba(37, 99, 235, 0.3)" stroke="#2563eb" strokeWidth="2" />
+        {angles.map((a, i) => {
+           const keys = ['electrical', 'mechanical', 'safety', 'troubleshooting'];
+           const point = getPoint(scores[keys[i]].normalized, a);
+           return <circle key={i} cx={point.split(',')[0]} cy={point.split(',')[1]} r="4" fill="#2563eb" />
+        })}
+      </svg>
+      <div className="absolute top-0 text-[10px] font-bold bg-yellow-100 text-yellow-700 px-1 rounded">Elec</div>
+      <div className="absolute right-0 text-[10px] font-bold bg-blue-100 text-blue-700 px-1 rounded">Mech</div>
+      <div className="absolute bottom-0 text-[10px] font-bold bg-green-100 text-green-700 px-1 rounded">Safe</div>
+      <div className="absolute left-0 text-[10px] font-bold bg-purple-100 text-purple-700 px-1 rounded">Trb</div>
+    </div>
+  );
+};
+
+const GapAnalysisReport = ({ scores, targetScores }) => {
+  const categories = ['electrical', 'mechanical', 'troubleshooting', 'safety'];
+  
+  return (
+    <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 mt-8">
+      <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
+         <Target size={16} className="text-red-500"/> HRD Gap Analysis
+      </h4>
+      <div className="space-y-3">
+         {categories.map(cat => {
+            const actual = scores[cat].normalized;
+            const target = targetScores ? targetScores[cat] : 3;
+            const gap = actual - target;
+            const isGap = gap < -0.5;
+            
+            return (
+               <div key={cat} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2 capitalize w-32 font-medium text-slate-600">
+                     <div className={`w-2 h-2 rounded-full ${isGap ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                     {cat.substring(0, 10)}
+                  </div>
+                  <div className="flex-1 flex items-center gap-2">
+                     <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden relative">
+                        <div className="absolute top-0 bottom-0 w-1 bg-slate-800 z-10" style={{left: `${(target/5)*100}%`}}></div>
+                        <div className={`h-full transition-all duration-500 ${isGap ? 'bg-red-500' : 'bg-green-500'}`} style={{width: `${(actual/5)*100}%`}}></div>
+                     </div>
+                  </div>
+                  <div className={`w-16 text-right font-bold ${isGap ? 'text-red-600' : 'text-green-600'}`}>
+                     {gap > 0 ? '+' : ''}{gap.toFixed(1)}
+                  </div>
+               </div>
+            )
+         })}
+      </div>
+    </div>
+  )
+};
+
+const SkillAccordion = ({ categoryKey, masterSkills, completedIds, onToggle, isEditing }) => {
+  const category = masterSkills[categoryKey];
+  const stats = calculateScore(categoryKey, completedIds, masterSkills);
+  const [isOpen, setIsOpen] = useState(false);
+  const Icon = category?.icon || Activity;
+
+  useEffect(() => { if (isEditing) setIsOpen(true); else setIsOpen(false); }, [isEditing]);
+
+  if (!category || !category.items || category.items.length === 0) return null;
+
+  return (
+    <div className={`bg-white rounded-xl border transition-all mb-4 overflow-hidden ${isEditing ? 'border-blue-400 shadow-md ring-1 ring-blue-100' : 'border-slate-200 shadow-sm'}`}>
+      <div onClick={() => setIsOpen(!isOpen)} className={`p-4 flex justify-between items-center cursor-pointer ${isOpen ? 'bg-slate-50' : 'bg-white'}`}>
+         <div className="flex items-center gap-4 flex-1">
+            <div className={`p-2 rounded-lg ${category.bg} text-white shadow-sm`}><Icon size={24} /></div>
+            <div className="flex-1">
+               <h3 className={`font-bold text-lg ${category.color} mb-1`}>{category.title}</h3>
+               <div className="flex items-center gap-2 mt-1">
+                 <div className="w-24 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div className={`h-full ${category.bg}`} style={{width: `${stats.percentage}%`}}></div>
+                 </div>
+                 <span className="text-xs text-slate-500">{stats.percentage}%</span>
+               </div>
+            </div>
+         </div>
+         <ChevronDown size={20} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}/>
+      </div>
+
+      <div className={`transition-all duration-300 ${isOpen ? 'max-h-[2000px]' : 'max-h-0'} overflow-hidden`}>
+         <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+            {isEditing && (
+              <div className="mb-4 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-2 rounded-lg inline-flex items-center gap-2">
+                <CheckSquare size={14}/> Edit Mode: Click items to update skills
+              </div>
+            )}
+            <div className="space-y-6">
+               {[1, 2, 3, 4, 5].map(level => {
+                  const items = category.items.filter(i => i.level === level);
+                  if (items.length === 0) return null;
+                  return (
+                     <div key={level} className="relative pl-4 border-l-2 border-slate-200 ml-1">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Level {level}</div>
+                        <div className="grid grid-cols-1 gap-2">
+                            {items.map(item => {
+                                const isChecked = completedIds.includes(item.id);
+                                return (
+                                    <div key={item.id} onClick={() => isEditing && onToggle(item.id)} className={`flex gap-3 p-3 rounded border bg-white ${isChecked ? 'border-green-500 ring-1 ring-green-100' : 'border-slate-200'} ${isEditing ? 'cursor-pointer hover:shadow-sm' : ''}`}>
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${isChecked ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-slate-300'}`}>
+                                            {isChecked && <CheckSquare size={14} strokeWidth={3}/>}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-sm text-slate-700">{item.text}</div>
+                                            <div className="text-[10px] text-slate-400 mt-0.5">{item.id} • {item.weight} pts</div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
                         </div>
                     </div>
-                `).join('');
-            } else if (type === 'all') {
-                title.innerText = 'ฐานข้อมูลเครื่องจักร';
-                document.getElementById('modal-filter-bar').classList.remove('hidden');
-                document.getElementById('machine-search').value = '';
-                document.getElementById('btn-print-qr').classList.remove('hidden');
-                populateTypeFilter();
-                filterModalList();
-            }
-            modal.classList.add('show');
-        }
+                  )
+               })}
+            </div>
+         </div>
+      </div>
+    </div>
+  );
+};
 
-        function populateTypeFilter() {
-            const select = document.getElementById('machine-type-filter');
-            select.innerHTML = '<option value="">ทั้งหมด</option>';
-            const types = [...new Set(appData.machines.map(m => m['ประเภทรถ']).filter(t => t))].sort();
-            types.forEach(type => { const opt = document.createElement('option'); opt.value = type; opt.innerText = type; select.appendChild(opt); });
-        }
+// --- 6. PAGE VIEWS ---
+
+const TechProfileView = ({ tech, masterSkills, initialSkills, onBack }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [completedSkills, setCompletedSkills] = useState(initialSkills);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => { setCompletedSkills(initialSkills) }, [initialSkills]);
+
+  const scores = {
+    electrical: calculateScore('electrical', completedSkills, masterSkills),
+    mechanical: calculateScore('mechanical', completedSkills, masterSkills),
+    troubleshooting: calculateScore('troubleshooting', completedSkills, masterSkills),
+    safety: calculateScore('safety', completedSkills, masterSkills)
+  };
+
+  const targetScores = ROLE_TARGETS[tech.position] || ROLE_TARGETS["Technician"];
+
+  const handleToggleSkill = (id) => {
+    setCompletedSkills(prev => prev.includes(id) ? prev.filter(k => k !== id) : [...prev, id]);
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ techId: tech.id, skills: completedSkills })
+        });
+        const result = await response.json();
         
-        function filterModalList() {
-            const type = lastModalType; if (type !== 'all') return;
-            const body = document.getElementById('modal-body');
-            const searchText = document.getElementById('machine-search').value.toLowerCase().trim();
-            const filterType = document.getElementById('machine-type-filter').value;
-            const filteredList = appData.alerts.all.filter(item => {
-                return (!searchText || (item.info['รหัส']||'').toLowerCase().includes(searchText)) && (!filterType || (item.info['ประเภทรถ'] === filterType));
-            });
-            body.innerHTML = filteredList.map(item => `
-                <div onclick="showMachineDetails('${item.info['รหัส']}')" class="bg-white/5 p-3 mb-2 rounded-xl hover:bg-white/10 cursor-pointer transition flex justify-between items-center border border-transparent hover:border-[var(--crystal-cyan)] backdrop-blur-sm">
-                    <div class="font-bold text-[var(--crystal-cyan)]">${item.info['รหัส']}</div>
-                    <div class="text-sm text-gray-400">${item.info['ทะเบียน'] || '-'}</div>
+        if (result.status === 'success') {
+            alert("✅ บันทึกข้อมูลลง Google Sheet เรียบร้อยแล้ว!");
+            setIsEditing(false);
+        } else {
+            alert("❌ เกิดข้อผิดพลาด: " + result.message);
+        }
+    } catch (error) {
+        console.error("Save error:", error);
+        alert("⚠️ บันทึกไม่สำเร็จ (ตรวจสอบ Console)");
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="animate-in slide-in-from-right duration-500 pb-20">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 sticky top-0 bg-slate-50/95 backdrop-blur z-30 py-4 border-b border-slate-200">
+        <div className="flex items-center gap-4 w-full md:w-auto">
+           <button onClick={onBack} className="p-2 rounded-full hover:bg-white text-slate-500"><ArrowLeft size={24}/></button>
+           <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full ${tech.avatar} flex items-center justify-center text-white font-bold`}>{tech.name.charAt(0)}</div>
+              <div>
+                 <h1 className="text-lg font-bold text-slate-800">{tech.name}</h1>
+                 <p className="text-xs text-slate-500">{tech.id} • {tech.position}</p>
+              </div>
+           </div>
+        </div>
+        <div className="flex gap-3 w-full md:w-auto">
+           {!isEditing ? (
+             <button onClick={() => setIsEditing(true)} className="flex-1 md:flex-none px-6 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 font-bold text-sm shadow-sm hover:bg-slate-50 flex items-center gap-2">
+                <Edit3 size={16} /> Edit
+             </button>
+           ) : (
+             <div className="flex gap-2 w-full md:w-auto">
+                <button onClick={() => setIsEditing(false)} className="px-3 py-2 text-slate-500 text-sm font-bold" disabled={isSaving}>Cancel</button>
+                <button onClick={handleSave} disabled={isSaving} className="flex-1 md:flex-none px-4 py-2 bg-green-600 rounded-lg text-white font-bold text-sm shadow-md hover:bg-green-700 flex items-center gap-2">
+                    {isSaving ? <Loader2 className="animate-spin" size={16}/> : <Save size={16} />}
+                    {isSaving ? "Saving..." : "Save Changes"}
+                </button>
+             </div>
+           )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+         <div className="lg:col-span-4 space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sticky top-24">
+               <h3 className="font-bold text-slate-800 mb-4 text-center">Competency Radar</h3>
+               <RadarChart scores={scores} targetScores={targetScores} />
+               <GapAnalysisReport scores={scores} targetScores={targetScores} />
+               
+               <div className="mt-6 border-t border-slate-100 pt-4">
+                  <h4 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
+                     <FileText size={16} className="text-slate-400"/> Recent Evidence
+                  </h4>
+                  <div className="text-center text-xs text-slate-400 py-4">No evidence uploaded yet</div>
+                  <button className="w-full mt-2 text-xs text-slate-400 border border-dashed border-slate-300 rounded p-2 hover:bg-slate-50 hover:text-blue-500 transition-colors">
+                     + Upload New Evidence
+                  </button>
+               </div>
+            </div>
+         </div>
+
+         <div className="lg:col-span-8">
+            {Object.keys(masterSkills).map(key => (
+                <SkillAccordion 
+                    key={key} 
+                    categoryKey={key} 
+                    masterSkills={masterSkills}
+                    completedIds={completedSkills} 
+                    onToggle={handleToggleSkill} 
+                    isEditing={isEditing} 
+                />
+            ))}
+         </div>
+      </div>
+    </div>
+  );
+};
+
+const TechListView = ({ technicians, onSelect, onBack }) => {
+  const [filter, setFilter] = useState('');
+  const safeTechnicians = technicians || [];
+  const filteredTechs = safeTechnicians.filter(t => t.name.includes(filter) || t.team.includes(filter));
+
+  return (
+    <div className="animate-in fade-in slide-in-from-right duration-500">
+       <div className="flex items-center gap-4 mb-8">
+         <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><ArrowLeft className="text-slate-500" /></button>
+         <div>
+            <h2 className="text-2xl font-bold text-slate-800">รายชื่อพนักงาน (Staff List)</h2>
+            <p className="text-slate-500">เลือกพนักงานเพื่อดูรายละเอียดหรือทำการประเมิน</p>
+         </div>
+       </div>
+       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 relative">
+          <Search className="absolute left-6 top-6.5 text-gray-400 translate-y-[-50%]" size={20}/>
+          <input 
+            type="text" 
+            placeholder="ค้นหาชื่อ หรือ โซน..." 
+            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            onChange={(e) => setFilter(e.target.value)}
+          />
+       </div>
+       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTechs.map(tech => (
+             <div key={tech.id} onClick={() => onSelect(tech)} className="group bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-blue-300 cursor-pointer transition-all flex items-center gap-4 relative overflow-hidden">
+                <div className={`absolute top-0 left-0 w-1 h-full ${tech.avatar} group-hover:w-2 transition-all`}></div>
+                <div className={`w-16 h-16 rounded-2xl ${tech.avatar} flex items-center justify-center text-white text-2xl font-bold shadow-lg group-hover:scale-105 transition-transform`}>
+                   {tech.name.charAt(0)}
                 </div>
-            `).join('');
-        }
-
-        function closeModal() { cleanupModalCharts(); document.getElementById('modal').classList.remove('show'); }
-        
-        function showMachineDetails(code, ctx={}) { 
-             const machine = appData.machines.find(m => m['รหัส'] === code);
-             if (!machine) return;
-             openModal('none'); 
-             document.getElementById('modal-title').innerText = `รหัส: ${code}`;
-             document.getElementById('modal-filter-bar').classList.add('hidden');
-             
-             modalChartState = { machineCode: code, view: ctx.view || 'year', year: ctx.year!==undefined?ctx.year:null, month: ctx.month!==undefined?ctx.month:null };
-             
-             // --- NEW LOGIC FOR DYNAMIC STATUS ---
-             const today = new Date(); today.setHours(0,0,0,0);
-             const getStatus = (dateStr) => {
-                 if(!dateStr || dateStr === '-') return { color: 'text-white', label: 'text-[var(--crystal-cyan)]', status: '' };
-                 const d = parseDate(dateStr);
-                 if(!d) return { color: 'text-white', label: 'text-[var(--crystal-cyan)]', status: '' };
-                 
-                 const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
-                 if(diff < 0) return { color: 'text-red-500', label: 'text-red-400', status: '(ขาด)' }; 
-                 if(diff <= 30) return { color: 'text-yellow-500', label: 'text-yellow-400', status: '(ใกล้หมด)' };
-                 return { color: 'text-emerald-400', label: 'text-[var(--crystal-cyan)]', status: '' }; 
-             };
-             
-             const taxSt = getStatus(machine['วันที่ทะเบียนขาด']);
-             const insSt = getStatus(machine['วันที่ประกัน+พรบ.ขาด']);
-             // --- END NEW LOGIC ---
-
-             document.getElementById('modal-body').innerHTML = `
-                <div class="space-y-6 animate-fade-in">
-                    <button onclick="openModal(lastModalType)" class="btn-crystal px-4 py-2 text-xs flex items-center gap-2"><i class="fas fa-arrow-left"></i> ย้อนกลับ</button>
-                    <div class="bg-white/5 p-5 rounded-2xl border border-white/10 backdrop-blur-md">
-                         <div class="grid grid-cols-2 gap-4 text-sm text-gray-300">
-                           <div><span class="block text-[var(--crystal-cyan)] text-xs mb-1 font-bold">ทะเบียน</span> <div class="font-bold text-white text-lg">${machine['ทะเบียน'] || '-'}</div></div>
-                           <div><span class="block text-[var(--crystal-cyan)] text-xs mb-1 font-bold">ประเภท</span> <div class="font-bold text-white text-lg">${machine['ประเภทรถ'] || '-'}</div></div>
-                           <div><span class="block text-[var(--crystal-cyan)] text-xs mb-1 font-bold">ยี่ห้อ</span> <div class="font-bold text-white">${machine['ยี่ห้อรถ'] || '-'}</div></div>
-                           <div><span class="block text-[var(--crystal-cyan)] text-xs mb-1 font-bold">เลขเครื่อง</span> <div class="font-bold text-white">${machine['เลขเครื่อง'] || '-'}</div></div>
-                           <div class="col-span-2 border-t border-white/10 pt-3 mt-1 grid grid-cols-2 gap-4">
-                               <div>
-                                   <span class="block ${taxSt.label} text-xs mb-1 font-bold">วันครบกำหนดภาษี</span> 
-                                   <div class="font-bold ${taxSt.color}">${machine['วันที่ทะเบียนขาด'] || '-'} <span class="text-xs opacity-80">${taxSt.status}</span></div>
-                               </div>
-                               <div>
-                                   <span class="block ${insSt.label} text-xs mb-1 font-bold">วันครบกำหนดประกัน</span> 
-                                   <div class="font-bold ${insSt.color}">${machine['วันที่ประกัน+พรบ.ขาด'] || '-'} <span class="text-xs opacity-80">${insSt.status}</span></div>
-                               </div>
-                           </div>
-                         </div>
-                    </div>
-                    <div class="bg-white/5 p-5 rounded-2xl border border-white/10 backdrop-blur-md">
-                         <div class="flex justify-between items-center mb-4">
-                             <h4 class="text-white font-bold flex items-center gap-2"><i class="fas fa-chart-line text-[var(--crystal-amber)]"></i> สถิติการใช้งาน</h4>
-                             <button onclick="resetModalChartToYear()" class="text-xs text-gray-400 hover:text-white border border-gray-600 px-3 py-1 rounded-full transition">รีเซ็ต</button>
-                         </div>
-                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                             <div><h5 class="text-[var(--crystal-emerald)] text-xs font-bold mb-2 uppercase">FUEL USAGE <span id="val-modal-fuel" class="text-white ml-2"></span></h5><div class="h-48 relative"><canvas id="modalFuelChart"></canvas></div></div>
-                             <div><h5 class="text-[var(--crystal-purple)] text-xs font-bold mb-2 uppercase">MAINTENANCE <span id="val-modal-maint" class="text-white ml-2"></span></h5><div class="h-48 relative"><canvas id="modalMaintChart"></canvas></div></div>
-                         </div>
-                    </div>
-                </div>`;
-             setTimeout(() => { updateModalCharts(); }, 100);
-        }
-        
-        function cleanupModalCharts() {
-            if (modalFuelChartInstance) { modalFuelChartInstance.destroy(); modalFuelChartInstance = null; }
-            if (modalMaintChartInstance) { modalMaintChartInstance.destroy(); modalMaintChartInstance = null; }
-            if (modalProjectChartInstance) { modalProjectChartInstance.destroy(); modalProjectChartInstance = null; }
-            if (modalProjectRankChartInstance) { modalProjectRankChartInstance.destroy(); modalProjectRankChartInstance = null; }
-        }
-        function switchAlertTab(t) { renderAlertList(t); }
-        function renderAlertList(t) { 
-            const container = document.getElementById('alert-list-container');
-            const list = t==='expired' ? appData.alerts.expired : appData.alerts.warning;
-            if(list.length === 0) {
-                container.innerHTML = `<div class="text-center text-gray-500 py-6">ไม่พบรายการ</div>`;
-                return;
-            }
-            container.innerHTML = list.map(item => `
-                <div onclick="showMachineDetails('${item.info['รหัส']}')" class="bg-white/5 border-l-4 ${t==='expired'?'border-red-500':'border-yellow-500'} p-3 mb-2 rounded-xl shadow-lg cursor-pointer hover:bg-white/10 transition backdrop-blur-sm">
-                    <div class="flex justify-between">
-                        <span class="font-bold text-white">${item.info['รหัส']}</span>
-                        <span class="text-xs text-gray-400">${item.info['ทะเบียน']}</span>
-                    </div>
-                    ${t==='expired' ? item.expiredIssues.map(i=>`<div class="text-xs text-red-400 mt-1">• ${i}</div>`).join('') : item.warningIssues.map(i=>`<div class="text-xs text-yellow-400 mt-1">• ${i}</div>`).join('')}
+                <div>
+                   <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">{tech.name}</h3>
+                   <p className="text-slate-500 text-sm flex items-center gap-1"><Users size={12}/> {tech.team}</p>
+                   <p className="text-xs text-slate-400 mt-1">{tech.position}</p>
+                   <div className="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded inline-block mt-2 font-medium">View Profile →</div>
                 </div>
-            `).join('');
-        }
-        
-        // --- Modal Chart Logic ---
+                <ChevronRight className="ml-auto text-slate-300"/>
+             </div>
+          ))}
+       </div>
+    </div>
+  )
+}
 
-        function updateModalCharts() {
-            if(!document.getElementById('modalFuelChart')) return;
-            renderModalFuelChart();
-            renderModalMaintChart();
-        }
+const HomeView = ({ onNavigate, count, status }) => (
+  <div className="flex flex-col items-center justify-center min-h-[500px] text-center">
+    <div className={`p-4 rounded-full mb-6 ${status === 'online' ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}`}>
+        {status === 'online' ? <Activity size={48} /> : <WifiOff size={48}/>}
+    </div>
+    <h1 className="text-4xl font-bold text-slate-800 mb-4">HRD Skill Matrix</h1>
+    <p className="text-slate-500 max-w-md mb-8">
+        {status === 'online' 
+            ? `เชื่อมต่อฐานข้อมูล Google Sheet สำเร็จ พบพนักงาน ${count} ท่าน` 
+            : 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาตรวจสอบลิงก์'}
+    </p>
+    {status === 'online' && (
+        <button onClick={() => onNavigate('dashboard')} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg">
+            เข้าสู่ระบบ
+        </button>
+    )}
+  </div>
+);
 
-        function renderModalFuelChart() { renderSyncedModalChart('fuel', 'modalFuelChart', 'val-modal-fuel'); }
-        function renderModalMaintChart() { renderSyncedModalChart('maint', 'modalMaintChart', 'val-modal-maint'); }
+// --- 7. APP SHELL ---
+export default function RealDataHRDPortal() {
+  const [currentView, setCurrentView] = useState('home'); 
+  const [selectedTech, setSelectedTech] = useState(null);
+  const { technicians, masterSkills, userSkillsMap, loading, error } = useRealData();
 
-        function renderSyncedModalChart(type, canvasId, valId) {
-             const code = modalChartState.machineCode;
-             const dataSource = type === 'fuel' ? appData.fuel : appData.maintenance;
-             const valKey = type === 'fuel' ? 'ปริมาณ(ลิตร)' : 'ค่าซ่อมบำรุง';
-             const unit = type === 'fuel' ? 'L' : '฿';
-             const color = type === 'fuel' ? getCssVar('--crystal-emerald') : getCssVar('--crystal-purple');
-             
-             const dataFiltered = dataSource.filter(item => item['รหัสรถ'] === code);
-             let labels = [], data = [], total = 0;
+  const handleNavigate = (view) => { setCurrentView(view); if (view !== 'profile') setSelectedTech(null); };
+  const handleSelectTech = (tech) => { setSelectedTech(tech); setCurrentView('profile'); };
 
-             if (modalChartState.view === 'year') {
-                 const grouped = {}; dataFiltered.forEach(item => { const d = parseDate(item['วันที่']); if (d) { const val = parseNumber(item[valKey]); grouped[d.getFullYear()] = (grouped[d.getFullYear()] || 0) + val; total += val; } });
-                 labels = Object.keys(grouped).sort(); data = labels.map(y => grouped[y]);
-             } else if (modalChartState.view === 'month') {
-                 if(!modalChartState.year) { const years = [...new Set(dataFiltered.map(i => parseDate(i['วันที่'])?.getFullYear()).filter(y => y))].sort((a,b) => b-a); modalChartState.year = years[0] || new Date().getFullYear(); }
-                 const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-                 const grouped = new Array(12).fill(0); dataFiltered.forEach(item => { const d = parseDate(item['วันที่']); if (d && d.getFullYear() === modalChartState.year) { const val = parseNumber(item[valKey]); grouped[d.getMonth()] += val; total += val; } });
-                 labels = months; data = grouped;
-             } else if (modalChartState.view === 'day') {
-                 const days = new Date(modalChartState.year, modalChartState.month + 1, 0).getDate();
-                 const grouped = new Array(days).fill(0); dataFiltered.forEach(item => { const d = parseDate(item['วันที่']); if (d && d.getFullYear() === modalChartState.year && d.getMonth() === modalChartState.month) { const val = parseNumber(item[valKey]); grouped[d.getDate()-1] += val; total += val; } });
-                 labels = Array.from({length: days}, (_, i) => i + 1); data = grouped;
-             }
-             
-             // Update Title/Val
-             if(document.getElementById(valId)) document.getElementById(valId).innerText = `${formatNumber(total)} ${unit}`;
-             
-             const chartVar = type === 'fuel' ? modalFuelChartInstance : modalMaintChartInstance;
-             if (chartVar) chartVar.destroy();
-             
-             const ctx = document.getElementById(canvasId).getContext('2d');
-             const chart = new Chart(ctx, {
-                 type: 'bar', 
-                 data: { 
-                    labels: labels, 
-                    datasets: [{ 
-                        label: unit, 
-                        data: data, 
-                        backgroundColor: color, 
-                        borderRadius: 4,
-                        barThickness: 'flex',
-                        maxBarThickness: 30
-                    }] 
-                 },
-                 options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    plugins: { legend: { display: false } }, 
-                    scales: { 
-                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } }, 
-                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', font: { size: 9 } } } 
-                    },
-                    onClick: (e, activeEls) => { 
-                        if (activeEls.length > 0) { 
-                            const index = activeEls[0].index; 
-                            if (modalChartState.view === 'year') { 
-                                modalChartState.year = parseInt(labels[index]); 
-                                modalChartState.view = 'month'; 
-                                updateModalCharts(); 
-                            } else if (modalChartState.view === 'month') { 
-                                modalChartState.month = index; 
-                                modalChartState.view = 'day'; 
-                                updateModalCharts(); 
-                            } 
-                        } 
-                    }
-                 }
-             });
-             
-             if (type === 'fuel') modalFuelChartInstance = chart; else modalMaintChartInstance = chart;
-        }
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" size={48}/></div>;
 
-        // --- Project Page Charts ---
-        function renderPageProjectChart() {
-            // Trend Chart
-            const ctx = document.getElementById('pageProjectChart').getContext('2d');
-            if (pageProjectChartInstance) pageProjectChartInstance.destroy();
-
-            let dataSource = pageProjectState.graphMode === 'fuel' ? appData.fuel : appData.maintenance;
-            let valKey = pageProjectState.graphMode === 'fuel' ? 'ปริมาณ(ลิตร)' : 'ค่าซ่อมบำรุง';
-            let color = pageProjectState.graphMode === 'fuel' ? getCssVar('--crystal-emerald') : getCssVar('--crystal-purple');
-
-            dataSource = dataSource.filter(item => item['โครงการ'] === pageProjectState.projectName);
-
-            let labels = [], data = [];
-            const filterAndSum = (groupFn) => {
-                const grouped = {};
-                dataSource.forEach(item => {
-                      const d = parseDate(item['วันที่']); 
-                      if (!d) return;
-                      // View Filtering
-                      if (pageProjectState.view === 'month' && d.getFullYear() !== pageProjectState.year) return;
-                      if (pageProjectState.view === 'day' && (d.getFullYear() !== pageProjectState.year || d.getMonth() !== pageProjectState.month)) return;
-                      
-                      const val = parseFloat(item[valKey]) || 0;
-                      const key = groupFn(d);
-                      if (key !== null) grouped[key] = (grouped[key] || 0) + val;
-                });
-                return grouped;
-            }
-
-            if (pageProjectState.view === 'year') {
-                const d = filterAndSum((date) => date.getFullYear());
-                labels = Object.keys(d).sort(); data = labels.map(k => d[k]);
-            } else if (pageProjectState.view === 'month') {
-                const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-                const d = filterAndSum((date) => date.getMonth());
-                labels = months; data = new Array(12).fill(0).map((_, i) => d[i] || 0);
-            } else if (pageProjectState.view === 'day') {
-                const daysInMonth = new Date(pageProjectState.year, pageProjectState.month + 1, 0).getDate();
-                const d = filterAndSum((date) => date.getDate());
-                labels = Array.from({length: daysInMonth}, (_, i) => i + 1); data = labels.map(k => d[k] || 0);
-            }
-
-            pageProjectChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: pageProjectState.graphMode,
-                        data: data,
-                        backgroundColor: color,
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { display: true, ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { display: false } },
-                        y: { display: true, ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.05)' } }
-                    },
-                    onClick: (e, activeEls) => {
-                        if (activeEls.length > 0) {
-                            const index = activeEls[0].index;
-                            if (pageProjectState.view === 'year') {
-                                pageProjectState.year = parseInt(labels[index]);
-                                pageProjectState.view = 'month';
-                                updateProjectPageUI();
-                                updateProjectPageCharts();
-                            } else if (pageProjectState.view === 'month') {
-                                pageProjectState.month = index;
-                                pageProjectState.view = 'day';
-                                updateProjectPageUI();
-                                updateProjectPageCharts();
-                            } else if (pageProjectState.view === 'day') {
-                                showProjectDailyList(index);
-                            }
-                        }
-                    },
-                    onHover: (e, els) => e.native.target.style.cursor = els[0] ? 'pointer' : 'default'
-                }
-            });
-        }
-
-        function renderPageProjectRankChart() {
-             const ctx = document.getElementById('pageProjectRankChart').getContext('2d');
-             if (pageProjectRankInstance) pageProjectRankInstance.destroy();
-             
-             let dataSource = pageProjectState.graphMode === 'fuel' ? appData.fuel : appData.maintenance;
-             let valKey = pageProjectState.graphMode === 'fuel' ? 'ปริมาณ(ลิตร)' : 'ค่าซ่อมบำรุง';
-             let color = pageProjectState.graphMode === 'fuel' ? '#fbbf24' : '#f87171'; // Amber/Rose
-             
-             dataSource = dataSource.filter(item => item['โครงการ'] === pageProjectState.projectName);
-
-             // Filter by time context
-             dataSource = dataSource.filter(item => {
-                 const d = parseDate(item['วันที่']);
-                 if (!d) return false;
-                 if (pageProjectState.view === 'month' && d.getFullYear() !== pageProjectState.year) return false;
-                 if (pageProjectState.view === 'day' && (d.getFullYear() !== pageProjectState.year || d.getMonth() !== pageProjectState.month)) return false;
-                 return true;
-             });
-
-             const grouped = {};
-             dataSource.forEach(item => {
-                 const val = parseFloat(item[valKey]) || 0;
-                 const key = item['รหัสรถ'];
-                 if (key) grouped[key] = (grouped[key] || 0) + val;
-             });
-
-             const sorted = Object.entries(grouped).sort(([,a], [,b]) => b - a).slice(0, 10);
-             const labels = sorted.map(k => k[0]);
-             const data = sorted.map(k => k[1]);
-
-             pageProjectRankInstance = new Chart(ctx, {
-                 type: 'bar', 
-                 data: { labels: labels, datasets: [{ label: 'Top 10', data: data, backgroundColor: color, borderRadius: 6 }] },
-                 options: { 
-                     indexAxis: 'y', 
-                     responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, 
-                     scales: { 
-                         x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', font: {size: 9} } }, 
-                         y: { grid: { display: false }, ticks: { color: '#fff', font: { weight: 'bold' } } } 
-                     },
-                     // Click on Rank bar -> Go to machine detail with CURRENT CONTEXT
-                     onClick: (e, activeEls) => { 
-                         if(activeEls.length > 0) {
-                             const index = activeEls[0].index;
-                             const machineCode = labels[index];
-                             showMachineDetails(machineCode, { 
-                                 view: pageProjectState.view,
-                                 year: pageProjectState.year,
-                                 month: pageProjectState.month
-                             }); 
-                         }
-                     },
-                     onHover: (e, els) => e.native.target.style.cursor = els[0] ? 'pointer' : 'default'
-                 }
-             });
-        }
-
-        // --- Reset Modal ---
-        function resetModalChartToYear() {
-            modalChartState.view = 'year';
-            modalChartState.year = null;
-            modalChartState.month = null;
-            updateModalUI();
-            if (modalChartState.projectName) {
-                // Not used in new page flow, but kept for compatibility
-            } else {
-                updateModalCharts();
-            }
-        }
-
-        // --- Data Loading ---
-        async function loadData() {
-            const fetchTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 15000));
-            try {
-                const [machinesRes, fuelRes, maintRes] = await Promise.race([
-                    Promise.all([
-                        fetch(SHEET_URLS.machines).then(r => { if (!r.ok) throw new Error("Net"); return r.text(); }),
-                        fetch(SHEET_URLS.fuel).then(r => { if (!r.ok) throw new Error("Net"); return r.text(); }),
-                        fetch(SHEET_URLS.maintenance).then(r => { if (!r.ok) return ""; return r.text(); }).catch(() => "") 
-                    ]),
-                    fetchTimeout
-                ]);
-                
-                appData.machines = cleanCSV(Papa.parse(machinesRes, { header: true, skipEmptyLines: true }).data);
-                appData.fuel = cleanCSV(Papa.parse(fuelRes, { header: true, skipEmptyLines: true }).data);
-                if (maintRes) {
-                    const parsedMaint = Papa.parse(maintRes, { header: true, skipEmptyLines: true }).data;
-                    appData.maintenance = cleanCSV(parsedMaint);
-                    appData.maintenance.forEach(row => {
-                        const costKey = Object.keys(row).find(k => k.includes('ค่าใช้จ่าย') || k.includes('ค่าซ่อม'));
-                        if (costKey) row['ค่าซ่อมบำรุง'] = row[costKey];
-                        const projKey = Object.keys(row).find(k => k.includes('โครงการ'));
-                        if (projKey) row['โครงการ'] = row[projKey];
-                        const machineKey = Object.keys(row).find(k => k.includes('รหัสรถ') || k.includes('รหัส') || k.toLowerCase().includes('machine') || k.toLowerCase().includes('code'));
-                        if(machineKey) row['รหัสรถ'] = row[machineKey];
-                    });
-                }
-                appData.fuel.forEach(row => {
-                    const valKey = Object.keys(row).find(k => k.includes('ปริมาณ') || k.includes('ลิตร') || k.toLowerCase().includes('fuel') || k.toLowerCase().includes('qty'));
-                    if (valKey) row['ปริมาณ(ลิตร)'] = row[valKey];
-                    const projKey = Object.keys(row).find(k => k.includes('โครงการ'));
-                    if (projKey) row['โครงการ'] = row[projKey];
-                    const machineKey = Object.keys(row).find(k => k.includes('รหัสรถ') || k.includes('รหัส') || k.toLowerCase().includes('machine') || k.toLowerCase().includes('code'));
-                    if(machineKey) row['รหัสรถ'] = row[machineKey];
-                });
-                appData.machines.forEach(row => {
-                      const machineKey = Object.keys(row).find(k => k === 'รหัส' || k.includes('รหัส') || k.toLowerCase().includes('machine') || k.toLowerCase().includes('code'));
-                      if(machineKey && machineKey !== 'รหัส') row['รหัส'] = row[machineKey];
-                });
-
-                if(!appData.machines.length || !appData.fuel.length) throw new Error("Empty Data");
-                finalizeLoad();
-            } catch (error) {
-                console.error("Critical Load Error:", error);
-                document.getElementById('loading-text').innerText = "เชื่อมต่อล้มเหลว...";
-                document.getElementById('loading-text').classList.add('text-red-500');
-                document.getElementById('btn-retry').classList.remove('hidden');
-            }
-        }
-
-        function cleanCSV(data) {
-            if (!data || data.length === 0) return [];
-            return data.map(row => {
-                const newRow = {};
-                Object.keys(row).forEach(key => { newRow[key.trim()] = row[key] ? row[key].trim() : ""; });
-                return newRow;
-            });
-        }
-
-        function finalizeLoad() {
-            appData.fuel.sort((a, b) => { const da = parseDate(a['วันที่']); const db = parseDate(b['วันที่']); return (da && db) ? da - db : 0; });
-            appData.maintenance.sort((a, b) => { const da = parseDate(a['วันที่']); const db = parseDate(b['วันที่']); return (da && db) ? da - db : 0; });
-            initializeApp();
-        }
-
-        // --- UPDATED STATS FUNCTION TO FIX DATE FILTERING ---
-        function updateAllStats() {
-             let totalCost = 0; 
-             let totalFuel = 0; 
-             const selectedProj = chartState.selectedProject;
-             const selectedMachine = chartState.selectedMachine;
-
-             // Helper to check if date matches current view context
-             const isDateInView = (dateStr) => {
-                 if(!dateStr) return false;
-                 const d = parseDate(dateStr);
-                 if(!d) return false;
-                 
-                 // View: Year (Show All/Total History for now, OR filter by nothing)
-                 if(chartState.view === 'year') return true;
-                 
-                 // View: Month (Show Total for Selected Year)
-                 if(chartState.view === 'month') {
-                     return d.getFullYear() === chartState.selectedYear;
-                 }
-                 
-                 // View: Day (Show Total for Selected Month/Year)
-                 if(chartState.view === 'day' || chartState.view === 'single_day') {
-                     return d.getFullYear() === chartState.selectedYear && d.getMonth() === chartState.selectedMonth;
-                 }
-                 return true;
-             };
-
-             // Calculate Maintenance
-             appData.maintenance.forEach(item => {
-                 if (selectedProj !== 'ALL' && item['โครงการ'] !== selectedProj) return;
-                 if (selectedMachine !== 'ALL' && item['รหัสรถ'] !== selectedMachine) return;
-                 
-                 if (isDateInView(item['วันที่'])) {
-                    totalCost += parseNumber(item['ค่าซ่อมบำรุง']);
-                 }
-             });
-
-             // Calculate Fuel
-             appData.fuel.forEach(item => {
-                 if (selectedProj !== 'ALL' && item['โครงการ'] !== selectedProj) return;
-                 if (selectedMachine !== 'ALL' && item['รหัสรถ'] !== selectedMachine) return;
-
-                 if (isDateInView(item['วันที่'])) {
-                    totalFuel += parseNumber(item['ปริมาณ(ลิตร)']);
-                 }
-             });
-             
-             document.getElementById('total-maintenance').innerText = formatNumber(totalCost);
-             document.getElementById('total-fuel').innerText = formatNumber(totalFuel);
-             
-             // Update Project Count (Global)
-             const projects = new Set();
-             appData.fuel.forEach(f => { if(f['โครงการ']) projects.add(f['โครงการ']); });
-             appData.maintenance.forEach(m => { if(m['โครงการ']) projects.add(m['โครงการ']); });
-             document.getElementById('total-projects').innerText = projects.size;
-             
-             // Dynamic Labels based on context
-             let timeLabel = "";
-             if (chartState.view === 'month') {
-                 timeLabel = `(${chartState.selectedYear})`;
-             } else if (chartState.view === 'day' || chartState.view === 'single_day') {
-                 const mName = new Date(chartState.selectedYear, chartState.selectedMonth).toLocaleString('th-TH', { month: 'short' });
-                 timeLabel = `(${mName} ${String(chartState.selectedYear).slice(-2)})`;
-             }
-
-             document.getElementById('label-total-fuel').innerText = `Fuel Usage ${timeLabel}`;
-             document.getElementById('label-total-maint').innerText = `Maintenance ${timeLabel}`;
-        }
-
-        function initializeApp() {
-            document.getElementById('current-date').innerText = new Date().toLocaleDateString('th-TH');
-            document.getElementById('total-machines').innerText = appData.machines.length;
-            const selector = document.getElementById('machine-select');
-            const codes = [...new Set(appData.machines.map(m => m['รหัส']).filter(c => c))].sort();
-            codes.forEach(code => { const opt = document.createElement('option'); opt.value = code; opt.innerText = code; selector.appendChild(opt); });
-
-            updateAllStats();
-            updateChartColors();
-            processAlerts();
-            setupFuelChart();
-            document.getElementById('loading').style.opacity = '0';
-            setTimeout(() => document.getElementById('loading').style.display = 'none', 500);
-        }
-
-        function processAlerts() {
-            const today = new Date(); today.setHours(0,0,0,0);
-            appData.alerts.all = []; appData.alerts.expired = []; appData.alerts.warning = [];
-            const machineMap = new Map();
-            appData.machines.forEach(machine => {
-                const code = machine['รหัส']; if (!code) return;
-                if(!machineMap.has(code)) { machineMap.set(code, { info: machine, expiredIssues: [], warningIssues: [] }); }
-                const entry = machineMap.get(code);
-                const checks = [
-                    { key: 'วันที่ทะเบียนขาด', label: 'ทะเบียน', date: parseDate(machine['วันที่ทะเบียนขาด']) },
-                    { key: 'วันที่ประกัน+พรบ.ขาด', label: 'ประกัน', date: parseDate(machine['วันที่ประกัน+พรบ.ขาด']) }
-                ];
-                checks.forEach(check => {
-                    if (!check.date) return;
-                    const diffDays = Math.ceil((check.date - today) / (1000 * 60 * 60 * 24));
-                    const issueText = `${check.label}: ${formatDateTH(check.date)}`;
-                    if (diffDays <= 0) entry.expiredIssues.push(issueText);
-                    else if (diffDays <= 30) entry.warningIssues.push(issueText);
-                });
-            });
-            machineMap.forEach(data => {
-                appData.alerts.all.push(data);
-                if (data.expiredIssues.length > 0) appData.alerts.expired.push(data);
-                if (data.warningIssues.length > 0) appData.alerts.warning.push(data);
-            });
-            document.getElementById('val-expired').innerText = appData.alerts.expired.length;
-            document.getElementById('val-warning').innerText = appData.alerts.warning.length;
-        }
-
-        function updateChart() { 
-            renderTrendChart(); 
-            renderRankChart();
-        }
-
-        // --- Render Functions ---
-        
-        function renderTrendChart() {
-             const ctx = document.getElementById('trendChart').getContext('2d');
-             if (chartState.trendInstance) chartState.trendInstance.destroy();
-             
-             let dataSource = currentGraphMode === 'fuel' ? appData.fuel : appData.maintenance;
-             let valKey = currentGraphMode === 'fuel' ? 'ปริมาณ(ลิตร)' : 'ค่าซ่อมบำรุง';
-             // Colors for Theme
-             let colorStart = currentGraphMode === 'fuel' ? 'rgba(52, 211, 153, 0.5)' : 'rgba(129, 140, 248, 0.5)';
-             let colorEnd = currentGraphMode === 'fuel' ? 'rgba(52, 211, 153, 0.05)' : 'rgba(129, 140, 248, 0.05)';
-             let borderColor = currentGraphMode === 'fuel' ? '#34d399' : '#818cf8';
-             
-             dataSource = dataSource.filter(item => {
-                 if (chartState.selectedProject !== 'ALL' && item['โครงการ'] !== chartState.selectedProject) return false;
-                 if (chartState.selectedMachine !== 'ALL' && item['รหัสรถ'] !== chartState.selectedMachine) return false;
-                 return true;
-             });
-
-             let labels = [], data = [];
-             const filterAndSumTrend = (groupFn) => {
-                 const grouped = {}; 
-                 dataSource.forEach(item => { 
-                     const d = parseDate(item['วันที่']); 
-                     if (!d) return;
-                     if (chartState.view === 'month' && d.getFullYear() !== chartState.selectedYear) return;
-                     if ((chartState.view === 'day' || chartState.view === 'single_day') && (d.getFullYear() !== chartState.selectedYear || d.getMonth() !== chartState.selectedMonth)) return;
-                     
-                     const val = parseNumber(item[valKey]);
-                     const key = groupFn(d);
-                     if (key !== null) grouped[key] = (grouped[key] || 0) + val;
-                 });
-                 return grouped;
-             }
-
-             if (chartState.view === 'year') {
-                 document.getElementById('chart-breadcrumb').innerText = "ภาพรวมรายปี";
-                 document.getElementById('chart-back-btn').classList.add('hidden');
-                 document.getElementById('chart-home-btn').classList.add('hidden');
-                 const d = filterAndSumTrend((date) => date.getFullYear());
-                 labels = Object.keys(d).sort(); data = labels.map(k => d[k]);
-             } else if (chartState.view === 'month') {
-                 document.getElementById('chart-breadcrumb').innerText = `ปี: ${chartState.selectedYear}`;
-                 document.getElementById('chart-back-btn').classList.remove('hidden');
-                 document.getElementById('chart-home-btn').classList.remove('hidden');
-                 const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-                 const d = filterAndSumTrend((date) => date.getMonth());
-                 labels = months; data = new Array(12).fill(0).map((_, i) => d[i] || 0);
-             } else if (chartState.view === 'day' || chartState.view === 'single_day') {
-                 const mName = new Date(chartState.selectedYear, chartState.selectedMonth).toLocaleString('th-TH', { month: 'long' });
-                 document.getElementById('chart-breadcrumb').innerText = `${mName} ${chartState.selectedYear}`;
-                 const days = new Date(chartState.selectedYear, chartState.selectedMonth + 1, 0).getDate();
-                 const d = filterAndSumTrend((date) => date.getDate());
-                 labels = Array.from({length: days}, (_, i) => i + 1); data = labels.map(k => d[k] || 0);
-             }
-
-             // Create Gradient
-             const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-             gradient.addColorStop(0, colorStart);
-             gradient.addColorStop(1, colorEnd);
-
-             chartState.trendInstance = new Chart(ctx, {
-                 type: 'bar', 
-                 data: { 
-                     labels: labels, 
-                     datasets: [{ 
-                         label: currentGraphMode === 'fuel' ? 'น้ำมัน' : 'ซ่อมบำรุง', 
-                         data: data, 
-                         backgroundColor: gradient,
-                         borderColor: borderColor,
-                         borderWidth: 1,
-                         borderRadius: 4,
-                     }] 
-                 },
-                 options: { 
-                     responsive: true, maintainAspectRatio: false, 
-                     plugins: { legend: { display: false } }, 
-                     scales: { 
-                         x: { grid: { color: getCssVar('--chart-grid') }, ticks: { color: getCssVar('--text-muted') } }, 
-                         y: { grid: { color: getCssVar('--chart-grid') }, ticks: { color: getCssVar('--text-muted') } } 
-                     },
-                     onClick: (e, activeEls) => { if(activeEls.length > 0) handleTrendClick(activeEls[0].index, labels); },
-                     onHover: (e, els) => e.native.target.style.cursor = els[0] ? 'pointer' : 'default'
-                 }
-             });
-        }
-
-        function renderRankChart() {
-             const ctx = document.getElementById('rankChart').getContext('2d');
-             if (chartState.rankInstance) chartState.rankInstance.destroy();
-             
-             let dataSource = currentGraphMode === 'fuel' ? appData.fuel : appData.maintenance;
-             let valKey = currentGraphMode === 'fuel' ? 'ปริมาณ(ลิตร)' : 'ค่าซ่อมบำรุง';
-             let color = currentGraphMode === 'fuel' ? '#fbbf24' : '#f87171'; // Amber/Rose
-             
-             dataSource = dataSource.filter(item => {
-                 if (chartState.selectedProject !== 'ALL' && item['โครงการ'] !== chartState.selectedProject) return false;
-                 const d = parseDate(item['วันที่']);
-                 if (!d) return false;
-                 if (chartState.view === 'month' && d.getFullYear() !== chartState.selectedYear) return false;
-                 if ((chartState.view === 'day' || chartState.view === 'single_day') && (d.getFullYear() !== chartState.selectedYear || d.getMonth() !== chartState.selectedMonth)) return false;
-                 return true;
-             });
-
-             const grouped = {};
-             dataSource.forEach(item => {
-                 const val = parseNumber(item[valKey]);
-                 const key = item['รหัสรถ'];
-                 if (key) grouped[key] = (grouped[key] || 0) + val;
-             });
-
-             const sorted = Object.entries(grouped).sort(([,a], [,b]) => b - a).slice(0, 10);
-             const labels = sorted.map(k => k[0]);
-             const data = sorted.map(k => k[1]);
-
-             chartState.rankInstance = new Chart(ctx, {
-                 type: 'bar', 
-                 data: { labels: labels, datasets: [{ label: 'Top 10', data: data, backgroundColor: color, borderRadius: 6 }] },
-                 options: { 
-                     indexAxis: 'y', 
-                     responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, 
-                     scales: { 
-                         x: { grid: { color: getCssVar('--chart-grid') }, ticks: { color: getCssVar('--text-muted') } }, 
-                         y: { grid: { display: false }, ticks: { color: '#fff', font: { weight: 'bold' } } } 
-                     },
-                     onClick: (e, activeEls) => { if(activeEls.length > 0) handleRankClick(activeEls[0].index, labels); },
-                     onHover: (e, els) => e.native.target.style.cursor = els[0] ? 'pointer' : 'default'
-                 }
-             });
-        }
-
-        // --- NEW FUNCTIONS FOR QR & SCANNER ---
-        function printQRCodes() {
-            const searchText = document.getElementById('machine-search').value.toLowerCase().trim();
-            const filterType = document.getElementById('machine-type-filter').value;
-            
-            // Filter based on alerts.all list logic to match view
-            const filtered = appData.alerts.all.filter(item => {
-                return (!searchText || (item.info['รหัส']||'').toLowerCase().includes(searchText)) && (!filterType || (item.info['ประเภทรถ'] === filterType));
-            });
-
-            if (filtered.length === 0) { alert('ไม่พบข้อมูลที่จะพิมพ์'); return; }
-            if (filtered.length > 50 && !confirm(`ต้องการพิมพ์ QR Code จำนวน ${filtered.length} รายการ?`)) return;
-
-            const printWindow = window.open('', '', 'width=800,height=600');
-            printWindow.document.write(`
-                <html>
-                <head>
-                    <title>Print QR Codes</title>
-                    <style>
-                        body { font-family: sans-serif; padding: 20px; }
-                        .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px; }
-                        .qr-item { border: 1px solid #ccc; padding: 10px; text-align: center; page-break-inside: avoid; border-radius: 8px; }
-                        .qr-img { width: 100px; height: 100px; }
-                        .qr-code { font-weight: bold; margin-top: 5px; font-size: 14px; }
-                        .qr-name { font-size: 12px; color: #666; }
-                        @media print { .no-print { display: none; } }
-                    </style>
-                </head>
-                <body>
-                    <div class="no-print" style="margin-bottom: 20px;">
-                        <button onclick="window.print()">พิมพ์ (Print)</button>
-                        <button onclick="window.close()">ปิด (Close)</button>
-                    </div>
-                    <div class="qr-grid">
-                        ${filtered.map(item => `
-                            <div class="qr-item">
-                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(item.info['รหัส'])}" class="qr-img">
-                                <div class="qr-code">${item.info['รหัส']}</div>
-                                <div class="qr-name">${item.info['ทะเบียน']||''}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </body>
-                </html>
-            `);
-            printWindow.document.close();
-        }
-
-        function openQRScanner() {
-            document.getElementById('qr-modal').classList.add('show');
-            if(!html5QrCode) html5QrCode = new Html5Qrcode("qr-reader");
-            
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
-            .catch(err => {
-                console.error("Error starting scanner", err);
-                alert("ไม่สามารถเปิดกล้องได้: " + err);
-                closeQRModal();
-            });
-        }
-
-        function onScanSuccess(decodedText, decodedResult) {
-            console.log(`Scan result: ${decodedText}`, decodedResult);
-            closeQRModal();
-            // Try to find machine
-            const machine = appData.machines.find(m => m['รหัส'] === decodedText);
-            if(machine) {
-                showMachineDetails(decodedText);
-            } else {
-                alert(`ไม่พบข้อมูลเครื่องจักร: ${decodedText}`);
-            }
-        }
-
-        function closeQRModal() {
-            if (html5QrCode && html5QrCode.isScanning) {
-                html5QrCode.stop().then(() => {
-                    document.getElementById('qr-modal').classList.remove('show');
-                }).catch(err => console.error(err));
-            } else {
-                document.getElementById('qr-modal').classList.remove('show');
-            }
-        }
-
-        loadData();
-    </script>
-</body>
-</html>
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
+      <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-40">
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleNavigate('home')}>
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold"><Database size={20}/></div>
+          <span className="font-bold text-lg text-slate-800">SkillMatrix<span className="text-blue-600">Pro</span></span>
+        </div>
+      </nav>
+      <main className="p-4 md:p-8 max-w-7xl mx-auto">
+        {currentView === 'home' && <HomeView onNavigate={handleNavigate} count={technicians.length} status={error ? 'offline' : 'online'} />}
+        {currentView === 'dashboard' && <TechListView technicians={technicians} onSelect={handleSelectTech} onBack={() => handleNavigate('home')} />}
+        {currentView === 'profile' && selectedTech && (
+            <TechProfileView 
+                tech={selectedTech} 
+                masterSkills={masterSkills}
+                initialSkills={userSkillsMap[selectedTech.id] || []} 
+                onBack={() => handleNavigate('dashboard')} 
+            />
+        )}
+      </main>
+    </div>
+  );
+}
