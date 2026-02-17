@@ -12,32 +12,38 @@
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap" rel="stylesheet">
     
     <style>
-        body { font-family: 'Sarabun', sans-serif; background-color: #f8fafc; }
-        .fade-in { animation: fadeIn 0.5s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        body { font-family: 'Sarabun', sans-serif; background-color: #f1f5f9; }
+        .fade-in { animation: fadeIn 0.4s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
 <body class="text-slate-800">
 
     <!-- Navbar -->
-    <nav class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-50 shadow-sm">
+    <nav class="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm backdrop-blur-md bg-white/90">
         <div class="flex items-center gap-3 cursor-pointer" onclick="navigateTo('home')">
-            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
+            <div class="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg flex items-center justify-center text-white font-bold shadow-md">
                 <i data-lucide="database" class="w-5 h-5"></i>
             </div>
-            <span class="font-bold text-lg tracking-tight">SkillMatrix<span class="text-blue-600">Pro</span></span>
+            <span class="font-bold text-lg tracking-tight text-slate-800">SkillMatrix<span class="text-blue-600">Pro</span></span>
         </div>
-        <div class="flex gap-4 text-sm font-medium text-slate-500">
-            <button onclick="navigateTo('home')" class="hover:text-blue-600 transition-colors" id="nav-home">หน้าหลัก</button>
-            <button onclick="navigateTo('dashboard')" class="hover:text-blue-600 transition-colors" id="nav-dashboard">รายชื่อช่าง</button>
+        <div class="flex gap-1 text-sm font-medium text-slate-500 bg-slate-100 p-1 rounded-lg">
+            <button onclick="navigateTo('home')" class="px-4 py-1.5 rounded-md transition-all" id="nav-home">หน้าหลัก</button>
+            <button onclick="navigateTo('dashboard')" class="px-4 py-1.5 rounded-md transition-all" id="nav-dashboard">รายชื่อช่าง</button>
         </div>
     </nav>
 
     <!-- Content Area -->
-    <main id="app-content" class="p-4 md:p-8 max-w-7xl mx-auto min-h-screen">
+    <main id="app-content" class="p-4 md:p-6 max-w-6xl mx-auto min-h-screen">
         <div class="flex flex-col items-center justify-center h-96">
             <i data-lucide="loader-2" class="w-10 h-10 animate-spin text-blue-600 mb-4"></i>
-            <p class="text-slate-500">กำลังเชื่อมต่อ Staff_Skill_Matrix...</p>
+            <p class="text-slate-500 animate-pulse">กำลังเชื่อมต่อ Staff_Skill_Matrix...</p>
         </div>
     </main>
 
@@ -45,13 +51,9 @@
     <script>
         // --- 1. CONFIGURATION ---
         const CONFIG = {
-            // ลิงก์ CSV จากชีท Staff_Skill_Matrix (รายชื่อ+Matrix)
             STAFF_CSV: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7_f0P5kNKDtPrfGRP4oxezwethRxQLmKZO8JdNanSLr8rGLIaLRqC6n_NZI0UHLd7yK4s4Kvdl8vw/pub?gid=1930878113&single=true&output=csv",
-            // ลิงก์ CSV จากชีท Skill_Config_Reference (รายละเอียดสกิล)
             SKILL_CSV: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7_f0P5kNKDtPrfGRP4oxezwethRxQLmKZO8JdNanSLr8rGLIaLRqC6n_NZI0UHLd7yK4s4Kvdl8vw/pub?gid=2028292203&single=true&output=csv",
-            
-            // *** ลิงก์ Google Apps Script สำหรับบันทึกข้อมูล ***
-            SCRIPT_URL: "https://script.google.com/macros/s/AKfycbzPeYDKkABxzXKmsNMUuiTPoOh3WKt0lS0Yag9vFOAUH5BJrjs_aUcNy2XiqlrRhObmOQ/exec" 
+            SCRIPT_URL: "https://script.google.com/macros/s/AKfycbzPeYDKkABxzXKmsNMUuiTPoOh3WKt0lS0Yag9vFOAUH5BJrjs_aUcNy2XiqlrRhObmOQ/exec"
         };
 
         const ROLE_TARGETS = {
@@ -70,7 +72,10 @@
             selectedTech: null,
             status: 'loading',
             isEditing: false,
-            tempSkills: []
+            tempSkills: [],
+            // New State for Sorting/Filtering
+            sortBy: 'score', // 'score', 'name'
+            filterTeam: 'All'
         };
         let radarChartInstance = null;
 
@@ -101,14 +106,13 @@
 
         async function initData() {
             try {
-                // 1. โหลดข้อมูล Skill Config (Sheet 2)
                 const skillRes = await fetch(CONFIG.SKILL_CSV);
                 const skillRows = parseCSV(await skillRes.text());
 
                 const skills = {
-                    electrical: { title: "งานไฟฟ้าลิฟต์", icon: "zap", color: "text-yellow-600", bg: "bg-yellow-500", items: [] },
-                    mechanical: { title: "งานเครื่องกลลิฟต์", icon: "wrench", color: "text-blue-600", bg: "bg-blue-500", items: [] },
-                    troubleshooting: { title: "การวิเคราะห์ปัญหา", icon: "search", color: "text-purple-600", bg: "bg-purple-500", items: [] },
+                    electrical: { title: "ไฟฟ้า", icon: "zap", color: "text-yellow-600", bg: "bg-yellow-500", items: [] },
+                    mechanical: { title: "เครื่องกล", icon: "wrench", color: "text-blue-600", bg: "bg-blue-500", items: [] },
+                    troubleshooting: { title: "วิเคราะห์", icon: "search", color: "text-purple-600", bg: "bg-purple-500", items: [] },
                     safety: { title: "ความปลอดภัย", icon: "shield", color: "text-green-600", bg: "bg-green-500", items: [] }
                 };
 
@@ -132,7 +136,6 @@
                     }
                 });
 
-                // 2. โหลดข้อมูล Staff Matrix (Sheet 1)
                 const staffRes = await fetch(CONFIG.STAFF_CSV);
                 const staffRows = parseCSV(await staffRes.text());
                 
@@ -148,13 +151,11 @@
                         name: row['Name_TH'] || 'Unknown',
                         team: row['Team'] || row['Team_Zone'] || '-',
                         position: row['Position'] || 'Technician',
-                        avatar: 'bg-slate-600' // Default avatar color
+                        avatar: 'bg-slate-700' 
                     });
 
                     const mySkills = [];
-                    // วนลูปทุกคอลัมน์ เพื่อหาว่าสกิลไหนเป็น TRUE
                     Object.keys(row).forEach(key => {
-                        // ถ้าหัวตารางเป็นรหัสสกิล (เช่น E1.1) และค่าเป็น TRUE
                         if (/^[A-Z]\d+\.\d+$/.test(key) && row[key]?.toUpperCase() === 'TRUE') {
                             mySkills.push(key);
                         }
@@ -169,22 +170,49 @@
                 render();
 
             } catch (err) {
-                console.error("Data Load Error:", err);
+                console.error(err);
                 state.status = 'offline';
                 render();
             }
         }
 
-        // --- 4. RENDER UI ---
+        // --- 4. CALCULATION & UTILS ---
+
+        function calculateAllScores(skillsList) {
+            const scores = { total: 0 };
+            ['electrical', 'mechanical', 'troubleshooting', 'safety'].forEach(key => {
+                const cat = state.masterSkills[key];
+                if (!cat) return;
+                const totalW = cat.items.reduce((s, i) => s + i.weight, 0);
+                const userW = cat.items.reduce((s, i) => skillsList.includes(i.id) ? s + i.weight : s, 0);
+                scores[key] = {
+                    raw: userW, total: totalW,
+                    percentage: totalW===0?0:Math.round((userW/totalW)*100),
+                    normalized: totalW===0?0:(userW/totalW)*5
+                };
+                scores.total += userW;
+            });
+            // Calculate overall percentage average for simple badging
+            scores.overallPercent = Math.round((scores.electrical.percentage + scores.mechanical.percentage + scores.troubleshooting.percentage + scores.safety.percentage)/4);
+            return scores;
+        }
+
+        // --- 5. RENDER UI ---
 
         function render() {
             const app = document.getElementById('app-content');
-            document.getElementById('nav-home').classList.toggle('text-blue-600', state.currentView === 'home');
-            document.getElementById('nav-dashboard').classList.toggle('text-blue-600', state.currentView !== 'home');
+            const navHome = document.getElementById('nav-home');
+            const navDash = document.getElementById('nav-dashboard');
 
-            if (state.currentView === 'home') app.innerHTML = renderHome();
-            else if (state.currentView === 'dashboard') app.innerHTML = renderDashboard();
-            else if (state.currentView === 'profile') {
+            if (state.currentView === 'home') {
+                navHome.className = "px-4 py-1.5 rounded-md bg-white text-blue-600 shadow-sm transition-all";
+                navDash.className = "px-4 py-1.5 rounded-md text-slate-500 hover:text-slate-800 transition-all";
+                app.innerHTML = renderHome();
+            } else if (state.currentView === 'dashboard') {
+                navHome.className = "px-4 py-1.5 rounded-md text-slate-500 hover:text-slate-800 transition-all";
+                navDash.className = "px-4 py-1.5 rounded-md bg-white text-blue-600 shadow-sm transition-all";
+                app.innerHTML = renderDashboard();
+            } else if (state.currentView === 'profile') {
                 app.innerHTML = renderProfile();
                 renderChart();
             }
@@ -195,37 +223,125 @@
             const isOnline = state.status === 'online';
             return `
                 <div class="flex flex-col items-center justify-center min-h-[500px] text-center fade-in">
-                    <div class="p-4 rounded-full mb-6 ${isOnline ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}">
-                        <i data-lucide="${isOnline ? 'activity' : 'wifi-off'}" class="w-12 h-12"></i>
+                    <div class="p-6 rounded-3xl mb-8 ${isOnline ? 'bg-gradient-to-br from-blue-100 to-indigo-100' : 'bg-red-50'} shadow-sm">
+                        <i data-lucide="${isOnline ? 'activity' : 'wifi-off'}" class="w-16 h-16 ${isOnline ? 'text-blue-600' : 'text-red-500'}"></i>
                     </div>
-                    <h1 class="text-4xl font-bold text-slate-800 mb-4">HRD Skill Matrix Portal</h1>
-                    <p class="text-slate-500 max-w-md mb-8">
-                        ${isOnline ? `เชื่อมต่อ Staff_Skill_Matrix สำเร็จ พบพนักงาน ${state.technicians.length} ท่าน` : 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาตรวจสอบลิงก์'}
+                    <h1 class="text-5xl font-bold text-slate-800 mb-4 tracking-tight">HRD Skill Matrix <span class="text-blue-600">Portal</span></h1>
+                    <p class="text-slate-500 text-lg max-w-lg mb-10 leading-relaxed">
+                        ${isOnline ? `เชื่อมต่อฐานข้อมูลสำเร็จ <br>พบข้อมูลพนักงานทั้งหมด <b>${state.technicians.length}</b> ท่าน` : 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาตรวจสอบลิงก์ CSV'}
                     </p>
-                    ${isOnline ? `<button onclick="navigateTo('dashboard')" class="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg transition-all transform hover:scale-105">เข้าสู่ระบบ</button>` : ''}
+                    ${isOnline ? `<button onclick="navigateTo('dashboard')" class="px-10 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center gap-2"><i data-lucide="layout-dashboard" class="w-5 h-5"></i> เข้าสู่ระบบประเมินผล</button>` : ''}
                 </div>
             `;
         }
 
         function renderDashboard() {
+            // Get All Unique Teams
+            const teams = ['All', ...new Set(state.technicians.map(t => t.team))];
+            
+            // Filter & Sort Logic
+            let displayList = state.technicians.filter(t => state.filterTeam === 'All' || t.team === state.filterTeam);
+            
+            // Calculate scores for sorting
+            const listWithScores = displayList.map(t => {
+                const s = calculateAllScores(state.userSkillsMap[t.id] || []);
+                return { ...t, score: s.total, percent: s.overallPercent, details: s };
+            });
+
+            if (state.sortBy === 'score') {
+                listWithScores.sort((a, b) => b.score - a.score);
+            } else {
+                listWithScores.sort((a, b) => a.name.localeCompare(b.name));
+            }
+
             return `
                 <div class="fade-in">
-                    <div class="flex items-center gap-4 mb-8">
-                        <button onclick="navigateTo('home')" class="p-2 hover:bg-slate-200 rounded-full transition-colors"><i data-lucide="arrow-left" class="text-slate-500"></i></button>
-                        <div><h2 class="text-2xl font-bold text-slate-800">รายชื่อพนักงาน</h2><p class="text-slate-500 text-sm">เลือกพนักงานเพื่อดูรายละเอียด</p></div>
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                        <div>
+                            <h2 class="text-3xl font-bold text-slate-800">ทำเนียบช่างเทคนิค</h2>
+                            <p class="text-slate-500 mt-1">ภาพรวมสมรรถนะและทักษะรายบุคคล</p>
+                        </div>
+                        
+                        <div class="flex gap-2 bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+                            ${teams.map(team => `
+                                <button onclick="setFilterTeam('${team}')" class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${state.filterTeam === team ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'}">
+                                    ${team === 'All' ? 'ทั้งหมด' : team}
+                                </button>
+                            `).join('')}
+                        </div>
                     </div>
-                    <div class="mb-6 relative">
-                        <i data-lucide="search" class="absolute left-4 top-3.5 text-slate-400 w-5 h-5"></i>
-                        <input type="text" id="search-input" onkeyup="filterList()" placeholder="ค้นหาชื่อ หรือ โซน..." class="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none shadow-sm">
+
+                    <div class="flex justify-end mb-4 gap-2">
+                        <button onclick="setSort('name')" class="text-xs font-bold flex items-center gap-1 ${state.sortBy === 'name' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}">
+                            <i data-lucide="arrow-down-a-z" class="w-3 h-3"></i> เรียงตามชื่อ
+                        </button>
+                        <button onclick="setSort('score')" class="text-xs font-bold flex items-center gap-1 ${state.sortBy === 'score' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'}">
+                            <i data-lucide="trending-up" class="w-3 h-3"></i> เรียงตามคะแนน
+                        </button>
                     </div>
-                    <div id="tech-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        ${state.technicians.map(tech => `
-                            <div onclick="selectTech('${tech.id}')" class="bg-white p-4 rounded-xl border border-slate-200 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all flex items-center gap-4 group">
-                                <div class="w-12 h-12 rounded-full ${tech.avatar} flex items-center justify-center text-white font-bold text-lg shadow-sm">${tech.name.charAt(0)}</div>
-                                <div class="flex-1"><div class="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">${tech.name}</div><div class="text-sm text-slate-500">${tech.position} • ${tech.team}</div></div>
-                                <i data-lucide="chevron-right" class="text-slate-300 group-hover:text-blue-500 transition-colors"></i>
+
+                    <div class="space-y-3">
+                        ${listWithScores.map((tech, index) => {
+                            // Calculate color based on percentage
+                            let scoreColor = 'text-slate-600 bg-slate-100';
+                            let barColor = 'bg-slate-500';
+                            if(tech.percent >= 80) { scoreColor = 'text-green-700 bg-green-100'; barColor = 'bg-green-500'; }
+                            else if(tech.percent >= 60) { scoreColor = 'text-yellow-700 bg-yellow-100'; barColor = 'bg-yellow-500'; }
+                            else { scoreColor = 'text-red-700 bg-red-100'; barColor = 'bg-red-500'; }
+
+                            return `
+                            <div onclick="selectTech('${tech.id}')" class="group bg-white p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all cursor-pointer flex flex-col md:flex-row items-center gap-6 relative overflow-hidden">
+                                
+                                <!-- Ranking Number -->
+                                <div class="absolute left-0 top-0 bottom-0 w-1 ${barColor}"></div>
+                                <div class="absolute right-4 top-4 text-xs font-mono text-slate-300">#${index + 1}</div>
+
+                                <!-- 1. Info Section -->
+                                <div class="flex items-center gap-4 w-full md:w-1/3">
+                                    <div class="w-14 h-14 rounded-2xl ${tech.avatar} flex items-center justify-center text-white font-bold text-xl shadow-md group-hover:scale-105 transition-transform">
+                                        ${tech.name.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">${tech.name}</div>
+                                        <div class="text-sm text-slate-500 flex items-center gap-2">
+                                            <span class="bg-slate-100 px-2 py-0.5 rounded text-xs font-medium">${tech.team}</span>
+                                            <span>${tech.position}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 2. Skill DNA (Mini Bars) -->
+                                <div class="flex-1 w-full flex flex-col justify-center gap-2">
+                                    <div class="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                                        <span class="w-16">ไฟฟ้า</span>
+                                        <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-yellow-500 rounded-full" style="width: ${tech.details.electrical.percentage}%"></div></div>
+                                    </div>
+                                    <div class="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                                        <span class="w-16">เครื่องกล</span>
+                                        <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-blue-500 rounded-full" style="width: ${tech.details.mechanical.percentage}%"></div></div>
+                                    </div>
+                                    <div class="flex items-center gap-2 text-xs text-slate-500">
+                                        <span class="w-16">ปลอดภัย</span>
+                                        <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-green-500 rounded-full" style="width: ${tech.details.safety.percentage}%"></div></div>
+                                    </div>
+                                </div>
+
+                                <!-- 3. Score Badge -->
+                                <div class="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
+                                    <div class="text-center min-w-[80px]">
+                                        <div class="text-xs text-slate-400 font-bold uppercase mb-1">Score</div>
+                                        <span class="text-2xl font-bold ${scoreColor.split(' ')[0]}">${tech.score}</span>
+                                    </div>
+                                    
+                                    <div class="w-12 h-12 rounded-full ${scoreColor} flex items-center justify-center font-bold text-sm ring-4 ring-white shadow-sm">
+                                        ${tech.percent}%
+                                    </div>
+                                    
+                                    <i data-lucide="chevron-right" class="text-slate-300 group-hover:text-blue-500 transition-colors"></i>
+                                </div>
                             </div>
-                        `).join('')}
+                        `;
+                        }).join('')}
                     </div>
                 </div>
             `;
@@ -239,29 +355,38 @@
 
             return `
                 <div class="fade-in pb-20">
-                    <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 sticky top-0 bg-slate-50/95 backdrop-blur z-30 py-4 border-b border-slate-200">
+                    <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 sticky top-0 bg-white/90 backdrop-blur z-30 py-4 border-b border-slate-200">
                         <div class="flex items-center gap-4 w-full md:w-auto">
-                            <button onclick="navigateTo('dashboard')" class="p-2 rounded-full hover:bg-white text-slate-500 shadow-sm border border-transparent hover:border-slate-200"><i data-lucide="arrow-left"></i></button>
+                            <button onclick="navigateTo('dashboard')" class="p-2 rounded-full hover:bg-slate-100 text-slate-500 border border-slate-200"><i data-lucide="arrow-left"></i></button>
                             <div class="flex items-center gap-3">
-                                <div class="w-12 h-12 rounded-full ${tech.avatar} flex items-center justify-center text-white font-bold text-xl">${tech.name.charAt(0)}</div>
+                                <div class="w-12 h-12 rounded-2xl ${tech.avatar} flex items-center justify-center text-white font-bold text-xl shadow-sm">${tech.name.charAt(0)}</div>
                                 <div><h1 class="text-xl font-bold text-slate-800">${tech.name}</h1><p class="text-sm text-slate-500">${tech.id} • ${tech.position}</p></div>
                             </div>
                         </div>
                         <div class="flex gap-2 w-full md:w-auto">
                             ${state.isEditing 
-                                ? `<button onclick="cancelEdit()" class="px-4 py-2 text-slate-500 font-bold hover:bg-slate-200 rounded-lg transition-colors">ยกเลิก</button>
-                                   <button id="save-btn" onclick="saveData()" class="px-6 py-2 bg-green-600 text-white font-bold rounded-lg shadow-md hover:bg-green-700 transition-colors flex items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> บันทึก</button>`
-                                : `<button onclick="startEdit()" class="px-6 py-2 bg-white border border-slate-300 text-slate-700 font-bold rounded-lg shadow-sm hover:bg-slate-100 transition-colors flex items-center gap-2"><i data-lucide="edit-3" class="w-4 h-4"></i> ประเมินผล</button>`
+                                ? `<button onclick="cancelEdit()" class="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg transition-colors">ยกเลิก</button>
+                                   <button id="save-btn" onclick="saveData()" class="px-6 py-2 bg-green-600 text-white font-bold rounded-lg shadow-md hover:bg-green-700 transition-colors flex items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> บันทึกผล</button>`
+                                : `<button onclick="startEdit()" class="px-6 py-2 bg-white border border-slate-300 text-slate-700 font-bold rounded-lg shadow-sm hover:bg-slate-50 transition-colors flex items-center gap-2"><i data-lucide="edit-3" class="w-4 h-4"></i> แก้ไข / ประเมิน</button>`
                             }
                         </div>
                     </div>
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
                         <div class="lg:col-span-4 space-y-6">
                             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sticky top-24">
-                                <h3 class="font-bold text-slate-800 mb-4 text-center">Competency Radar</h3>
+                                <h3 class="font-bold text-slate-800 mb-6 text-center">Competency Radar</h3>
                                 <div class="relative h-64 w-full"><canvas id="skillRadarChart"></canvas></div>
-                                <div class="mt-4 text-center"><div class="text-3xl font-bold text-blue-600">${Math.round(scores.total)}</div><div class="text-xs text-slate-400 uppercase font-bold">Total Weighted Score</div></div>
-                                ${state.isEditing ? `<div class="mt-4 p-3 bg-yellow-50 text-yellow-800 text-xs rounded border border-yellow-200 text-center animate-pulse">โหมดแก้ไข: ติ๊กเลือกเพื่อปรับคะแนน</div>` : ''}
+                                <div class="mt-6 flex justify-center gap-8">
+                                    <div class="text-center">
+                                        <div class="text-3xl font-bold text-blue-600">${Math.round(scores.total)}</div>
+                                        <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Raw Score</div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-3xl font-bold ${scores.overallPercent > 70 ? 'text-green-600' : 'text-yellow-600'}">${scores.overallPercent}%</div>
+                                        <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Overall</div>
+                                    </div>
+                                </div>
+                                ${state.isEditing ? `<div class="mt-6 p-3 bg-blue-50 text-blue-800 text-xs rounded-lg border border-blue-100 flex items-center justify-center gap-2 animate-pulse"><i data-lucide="pen-tool" class="w-3 h-3"></i> คุณกำลังอยู่ในโหมดแก้ไขข้อมูล</div>` : ''}
                             </div>
                         </div>
                         <div class="lg:col-span-8 space-y-4">
@@ -286,19 +411,19 @@
                 const items = category.items.filter(i => i.level === lvl);
                 if (items.length === 0) continue;
                 itemsHtml += `
-                    <div class="mb-4 pl-3 border-l-2 border-slate-200">
+                    <div class="mb-4 pl-4 border-l-2 border-slate-100">
                         <div class="text-[10px] font-bold text-slate-400 uppercase mb-2">Level ${lvl}</div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                             ${items.map(item => {
                                 const isChecked = userSkills.includes(item.id);
                                 const action = state.isEditing ? `onclick="toggleSkill('${item.id}')"` : '';
                                 const cursor = state.isEditing ? 'cursor-pointer hover:shadow-sm active:scale-[0.99]' : 'cursor-default opacity-80';
-                                const style = isChecked ? 'bg-white border-green-500 ring-1 ring-green-100' : 'bg-slate-50 border-transparent';
-                                const check = isChecked ? `<div class="w-5 h-5 bg-green-500 rounded text-white flex items-center justify-center"><i data-lucide="check" class="w-3 h-3"></i></div>` : `<div class="w-5 h-5 bg-white border border-slate-300 rounded"></div>`;
+                                const style = isChecked ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200';
+                                const check = isChecked ? `<div class="w-5 h-5 bg-blue-600 rounded text-white flex items-center justify-center shadow-sm"><i data-lucide="check" class="w-3 h-3"></i></div>` : `<div class="w-5 h-5 bg-slate-50 border border-slate-300 rounded"></div>`;
                                 return `
-                                    <div ${action} class="flex gap-3 p-3 rounded border transition-all duration-200 ${style} ${cursor}">
+                                    <div ${action} class="flex gap-3 p-3 rounded-lg border transition-all duration-200 ${style} ${cursor}">
                                         <div class="shrink-0 pt-0.5">${check}</div>
-                                        <div class="flex-1"><div class="text-sm text-slate-700">${item.text}</div><div class="text-[10px] text-slate-400 mt-1 font-mono">${item.id} • ${item.weight} pts</div></div>
+                                        <div class="flex-1"><div class="text-sm text-slate-700 font-medium">${item.text}</div><div class="text-[10px] text-slate-400 mt-1 font-mono flex gap-2"><span>${item.id}</span> <span>•</span> <span>${item.weight} pts</span></div></div>
                                     </div>`;
                             }).join('')}
                         </div>
@@ -306,74 +431,23 @@
             }
 
             return `
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all">
-                    <div onclick="toggleAccordion('${accordionId}')" class="p-4 flex justify-between items-center cursor-pointer bg-white hover:bg-slate-50 transition-colors">
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
+                    <div onclick="toggleAccordion('${accordionId}')" class="p-5 flex justify-between items-center cursor-pointer bg-white hover:bg-slate-50 transition-colors">
                         <div class="flex items-center gap-4 flex-1">
-                            <div class="p-2 rounded-lg ${category.bg} text-white"><i data-lucide="${category.icon}"></i></div>
+                            <div class="p-2.5 rounded-xl ${category.bg} text-white shadow-sm"><i data-lucide="${category.icon}" class="w-6 h-6"></i></div>
                             <div class="flex-1">
                                 <h3 class="font-bold text-lg ${category.color}">${category.title}</h3>
-                                <div class="flex items-center gap-2 mt-1"><div class="w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden"><div class="h-full ${category.bg}" style="width: ${scoreData.percentage}%"></div></div><span class="text-xs text-slate-500 font-medium">${scoreData.percentage}%</span></div>
+                                <div class="flex items-center gap-3 mt-1.5"><div class="w-32 h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full ${category.bg}" style="width: ${scoreData.percentage}%"></div></div><span class="text-xs text-slate-500 font-medium">${scoreData.percentage}%</span></div>
                             </div>
                         </div>
                         <i id="icon-${accordionId}" data-lucide="chevron-down" class="text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}"></i>
                     </div>
-                    <div id="${accordionId}" class="transition-all duration-300 ease-in-out border-t border-slate-100 bg-slate-50/50 ${isOpen ? 'max-h-[3000px] opacity-100 p-5' : 'max-h-0 opacity-0 p-0 overflow-hidden'}">${itemsHtml}</div>
+                    <div id="${accordionId}" class="transition-all duration-300 ease-in-out border-t border-slate-100 bg-slate-50/30 ${isOpen ? 'max-h-[3000px] opacity-100 p-5' : 'max-h-0 opacity-0 p-0 overflow-hidden'}">${itemsHtml}</div>
                 </div>
             `;
         }
 
-        // --- 5. LOGIC & SAVE ---
-
-        function calculateAllScores(skillsList) {
-            const scores = { total: 0 };
-            ['electrical', 'mechanical', 'troubleshooting', 'safety'].forEach(key => {
-                const cat = state.masterSkills[key];
-                if (!cat) return;
-                const totalW = cat.items.reduce((s, i) => s + i.weight, 0);
-                const userW = cat.items.reduce((s, i) => skillsList.includes(i.id) ? s + i.weight : s, 0);
-                scores[key] = {
-                    raw: userW, total: totalW,
-                    normalized: totalW===0?0:(userW/totalW)*5,
-                    percentage: totalW===0?0:Math.round((userW/totalW)*100)
-                };
-                scores.total += userW;
-            });
-            return scores;
-        }
-
-        function toggleSkill(id) {
-            const idx = state.tempSkills.indexOf(id);
-            if (idx > -1) state.tempSkills.splice(idx, 1); else state.tempSkills.push(id);
-            render();
-        }
-
-        async function saveData() {
-            if (CONFIG.SCRIPT_URL.includes("วางลิงก์")) { alert("กรุณาใส่ลิงก์ Script ในโค้ดก่อน"); return; }
-            
-            const btn = document.getElementById('save-btn');
-            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> กำลังบันทึก...`;
-            btn.disabled = true;
-            lucide.createIcons();
-
-            try {
-                // ส่งข้อมูลด้วย POST (text/plain)
-                await fetch(CONFIG.SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ techId: state.selectedTech.id, skills: state.tempSkills })
-                });
-                
-                // อัปเดต State Local
-                state.userSkillsMap[state.selectedTech.id] = [...state.tempSkills];
-                state.isEditing = false;
-                alert("✅ บันทึกข้อมูลลง Google Sheet เรียบร้อยแล้ว");
-                render();
-            } catch (err) {
-                console.error(err);
-                alert("⚠️ บันทึกไม่สำเร็จ: " + err.message);
-                btn.innerHTML = "Save"; btn.disabled = false;
-            }
-        }
+        // --- 6. LOGIC & ACTIONS ---
 
         function navigateTo(view) {
             state.currentView = view;
@@ -385,8 +459,21 @@
             state.currentView = 'profile';
             render();
         }
+        function setFilterTeam(team) {
+            state.filterTeam = team;
+            render();
+        }
+        function setSort(type) {
+            state.sortBy = type;
+            render();
+        }
         function startEdit() { state.isEditing = true; state.tempSkills = [...(state.userSkillsMap[state.selectedTech.id] || [])]; render(); }
         function cancelEdit() { state.isEditing = false; render(); }
+        function toggleSkill(id) {
+            const idx = state.tempSkills.indexOf(id);
+            if (idx > -1) state.tempSkills.splice(idx, 1); else state.tempSkills.push(id);
+            render();
+        }
         function toggleAccordion(id) {
             const el = document.getElementById(id);
             const icon = document.getElementById('icon-' + id);
@@ -400,12 +487,45 @@
             const term = document.getElementById('search-input').value.toLowerCase();
             const grid = document.getElementById('tech-grid');
             Array.from(grid.children).forEach((card, i) => {
-                const tech = state.technicians[i];
-                card.style.display = (tech.name+tech.team).toLowerCase().includes(term) ? 'flex' : 'none';
+                // Warning: This simplistic filter assumes DOM order matches data order. 
+                // Better to re-render, but for speed we do display:none
+                // However, since we sort data now, direct indexing might fail.
+                // It's safer to just re-render with search term in state, but simpler for this demo:
+                // Let's rely on re-rendering for sorting/filtering.
             });
+            // Update: Since we have complex sort/filter, let's implement search as a render trigger.
+            // But 'filterList' was bound to onkeyup. Let's just re-render dashboard is safer.
+            render(); 
+        }
+        
+        async function saveData() {
+            const btn = document.getElementById('save-btn');
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> กำลังบันทึก...`;
+            btn.disabled = true;
+            lucide.createIcons();
+
+            try {
+                const response = await fetch(CONFIG.SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ techId: state.selectedTech.id, skills: state.tempSkills })
+                });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    state.userSkillsMap[state.selectedTech.id] = [...state.tempSkills];
+                    state.isEditing = false;
+                    alert("✅ บันทึกข้อมูลเรียบร้อย");
+                    render();
+                } else { throw new Error(result.message); }
+            } catch (err) {
+                console.error(err);
+                alert("⚠️ บันทึกไม่สำเร็จ: " + err.message);
+                btn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> บันทึกผล`; 
+                btn.disabled = false;
+                lucide.createIcons();
+            }
         }
 
-        // --- Chart ---
         function renderChart() {
             const ctx = document.getElementById('skillRadarChart');
             if (!ctx) return;
